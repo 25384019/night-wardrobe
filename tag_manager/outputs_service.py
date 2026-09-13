@@ -361,3 +361,45 @@ def favorite_to_gallery(rel_path: str, category: str = "生图精选", output_di
         "gallery_path": dest_path.relative_to(GALLERY_DIR).as_posix(),
         "category": category_clean,
     }
+
+
+def reparse_all_outputs(output_dir: Path | None = None) -> dict[str, int]:
+    """深度重新解析所有已收录的生图文件，强制提取精准的正负面提示词与 LoRA 列表并更新数据库。"""
+    root = (output_dir or get_configured_output_dir()).resolve()
+    if not root.is_dir():
+        return {"total": 0, "updated": 0}
+
+    with _SCAN_LOCK:
+        init_db()
+        with connect() as conn:
+            rows = conn.execute("SELECT id, rel_path FROM output_images").fetchall()
+            updated_count = 0
+            for row in rows:
+                image_id = row["id"]
+                rel_path = row["rel_path"]
+                try:
+                    full_path = resolve_safe_output_file(rel_path, output_dir=root)
+                except Exception:
+                    continue
+
+                meta = read_image_metadata(full_path)
+                positive, negative, workflow_raw, prompt_raw, checkpoint, loras, parameters, metadata_json, metadata_source, generation_params = extract_prompts(meta)
+
+                conn.execute(
+                    """
+                    UPDATE output_images
+                    SET positive_prompt = ?,
+                        negative_prompt = ?,
+                        checkpoint = ?,
+                        loras = ?,
+                        parameters = ?,
+                        generation_params = ?,
+                        metadata_source = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (positive, negative, checkpoint, loras, parameters, generation_params, metadata_source, image_id),
+                )
+                updated_count += 1
+
+            return {"total": len(rows), "updated": updated_count}

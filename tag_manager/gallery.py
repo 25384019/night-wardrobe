@@ -102,56 +102,219 @@ def parse_json(value: str) -> Any:
         return None
 
 
-def find_ksampler_connections(prompt_data: dict) -> tuple[str, str]:
+def get_node_text_from_workflow(workflow_data: dict | None, node_id: str | int) -> str:
+    if not isinstance(workflow_data, dict):
+        return ""
+    target_id = str(node_id)
+    for node in workflow_data.get("nodes", []):
+        if str(node.get("id")) == target_id:
+            wv = node.get("widgets_values")
+            if isinstance(wv, list) and len(wv) > 0:
+                first = wv[0]
+                if isinstance(first, str) and first.strip():
+                    return first.strip()
+                if isinstance(first, list) and len(first) > 0 and isinstance(first[0], str) and first[0].strip():
+                    return first[0].strip()
+    return ""
+
+
+def trace_node_text(prompt_data: dict, link: Any, workflow_data: dict | None = None, visited: set | None = None) -> str:
+    if visited is None:
+        visited = set()
+
+    node_id = ""
+    slot = 0
+    if isinstance(link, (list, tuple)) and len(link) >= 1:
+        node_id = str(link[0])
+        slot = int(link[1]) if len(link) > 1 and isinstance(link[1], int) else 0
+    elif isinstance(link, str):
+        node_id = link
+    else:
+        return ""
+
+    visit_key = f"{node_id}:{slot}"
+    if visit_key in visited or node_id not in prompt_data:
+        return ""
+    visited.add(visit_key)
+
+    node = prompt_data[node_id]
+    if not isinstance(node, dict):
+        return ""
+
+    ctype = node.get("class_type", "")
+    inputs = node.get("inputs", {})
+    if not isinstance(inputs, dict):
+        return ""
+
+    # PromptBuilder: slot 0 is positive, slot 1 is negative
+    if "PromptBuilder" in ctype:
+        if slot == 0 and "positive_prompt" in inputs:
+            return str(inputs["positive_prompt"]).strip()
+        if slot == 1 and "negative_prompt" in inputs:
+            return str(inputs["negative_prompt"]).strip()
+        if "positive_prompt" in inputs and not slot:
+            return str(inputs["positive_prompt"]).strip()
+        if "text" in inputs:
+            val = inputs["text"]
+            if isinstance(val, str):
+                return val.strip()
+            return trace_node_text(prompt_data, val, workflow_data, visited)
+
+    # PrimitiveStringMultiline, PrimitiveNode, ShowText, Text, String, etc.
+    for val_key in ("value", "text", "string", "prompt", "positive_prompt", "negative_prompt"):
+        val = inputs.get(val_key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+        elif isinstance(val, list) and len(val) >= 1:
+            res = trace_node_text(prompt_data, val, workflow_data, visited)
+            if res:
+                return res
+
+    # StringConcatenate: joins string_a and string_b
+    if "StringConcatenate" in ctype or ("string_a" in inputs and "string_b" in inputs):
+        delimiter = inputs.get("delimiter", ", ")
+        part_a = trace_node_text(prompt_data, inputs.get("string_a"), workflow_data, visited) if "string_a" in inputs else ""
+        part_b = trace_node_text(prompt_data, inputs.get("string_b"), workflow_data, visited) if "string_b" in inputs else ""
+        combined = [p for p in (part_a, part_b) if p]
+        if combined:
+            return delimiter.join(combined)
+
+    # If conditioning connects back to CLIPTextEncode or ConditioningConcat
+    for cond_key in ("conditioning", "conditioning_to", "conditioning_from", "clip"):
+        cond = inputs.get(cond_key)
+        if cond:
+            res = trace_node_text(prompt_data, cond, workflow_data, visited)
+            if res:
+                return res
+
+    # If text is not in inputs or references a dynamic/tagger node (like WD14Tagger), check workflow widgets_values
+    if workflow_data:
+        wf_text = get_node_text_from_workflow(workflow_data, node_id)
+        if wf_text:
+            return wf_text
+
+    return ""
+
+
+def trace_pipe(prompt_data: dict, pipe_link: Any, visited: set | None = None) -> tuple[Any, Any]:
+    if visited is None:
+        visited = set()
+    node_id = str(pipe_link[0]) if isinstance(pipe_link, (list, tuple)) and pipe_link else str(pipe_link)
+    if node_id in visited or node_id not in prompt_data:
+        return None, None
+    visited.add(node_id)
+    node = prompt_data[node_id]
+    if not isinstance(node, dict):
+        return None, None
+    inputs = node.get("inputs", {})
+    pos = inputs.get("positive") or inputs.get("pos") or inputs.get("positive_prompt")
+    neg = inputs.get("negative") or inputs.get("neg") or inputs.get("negative_prompt")
+    if pos or neg:
+        return pos, neg
+    if "pipe" in inputs:
+        return trace_pipe(prompt_data, inputs["pipe"], visited)
+    return None, None
+
+
+def find_ksampler_connections(prompt_data: dict, workflow_data: dict | None = None) -> tuple[str, str]:
     if not isinstance(prompt_data, dict):
         return "", ""
 
-    positive_node_id = ""
-    negative_node_id = ""
+    positive = ""
+    negative = ""
 
-    for node_id, node in prompt_data.items():
+    sampler_nodes = []
+    for nid, node in prompt_data.items():
         if not isinstance(node, dict):
             continue
-        class_type = node.get("class_type", "")
-        if "KSampler" not in class_type:
-            continue
+        ctype = node.get("class_type", "")
+        if "Sampler" in ctype or "Upscale" in ctype:
+            sampler_nodes.append((nid, node))
+
+    for nid, node in sampler_nodes:
         inputs = node.get("inputs", {})
-        pos_input = inputs.get("positive")
-        neg_input = inputs.get("negative")
-        if isinstance(pos_input, list) and len(pos_input) >= 1:
-            positive_node_id = str(pos_input[0])
-        if isinstance(neg_input, list) and len(neg_input) >= 1:
-            negative_node_id = str(neg_input[0])
-        if positive_node_id:
+        pos_link = inputs.get("positive") or inputs.get("pos")
+        neg_link = inputs.get("negative") or inputs.get("neg")
+
+        if not pos_link and not neg_link and "pipe" in inputs:
+            p_pos, p_neg = trace_pipe(prompt_data, inputs["pipe"])
+            pos_link = pos_link or p_pos
+            neg_link = neg_link or p_neg
+
+        if pos_link and not positive:
+            positive = trace_node_text(prompt_data, pos_link, workflow_data)
+        if neg_link and not negative:
+            negative = trace_node_text(prompt_data, neg_link, workflow_data)
+        if positive and negative:
             break
 
-    def trace_text(node_id: str, visited: set | None = None) -> str:
-        if visited is None:
-            visited = set()
-        if node_id in visited or node_id not in prompt_data:
-            return ""
-        visited.add(node_id)
-        node = prompt_data[node_id]
-        if not isinstance(node, dict):
-            return ""
-        inputs = node.get("inputs", {})
-        class_type = node.get("class_type", "")
-        if isinstance(inputs, dict):
-            text = inputs.get("text", "")
-            if isinstance(text, str) and text.strip() and ("Text" in class_type or "CLIPTextEncode" in class_type or "String" in class_type):
-                return text.strip()
-            if isinstance(text, list) and len(text) >= 1:
-                return trace_text(str(text[0]), visited)
-            clip_input = inputs.get("conditioning") or inputs.get("clip")
-            if isinstance(clip_input, list) and len(clip_input) >= 1:
-                result = trace_text(str(clip_input[0]), visited)
-                if result:
-                    return result
-        return ""
+    # Fallback to easy pipe or easy preSampling
+    if not positive or not negative:
+        for nid, node in prompt_data.items():
+            ctype = node.get("class_type", "")
+            if "easy" in ctype:
+                inputs = node.get("inputs", {})
+                pos_link = inputs.get("positive") or inputs.get("pos")
+                neg_link = inputs.get("negative") or inputs.get("neg")
+                if not pos_link and not neg_link and "pipe" in inputs:
+                    pos_link, neg_link = trace_pipe(prompt_data, inputs["pipe"])
+                if not positive and pos_link:
+                    positive = trace_node_text(prompt_data, pos_link, workflow_data)
+                if not negative and neg_link:
+                    negative = trace_node_text(prompt_data, neg_link, workflow_data)
 
-    positive = trace_text(positive_node_id) if positive_node_id else ""
-    negative = trace_text(negative_node_id) if negative_node_id else ""
     return positive, negative
+
+
+def clean_lora_name(lora_raw: str) -> str:
+    cleaned = Path(str(lora_raw).replace("\\", "/")).stem
+    return cleaned
+
+
+def find_checkpoints_and_loras(data: Any) -> tuple[str, list[str]]:
+    checkpoint = ""
+    loras: list[str] = []
+    seen_loras: set[str] = set()
+
+    def _extract_from_obj(obj: Any):
+        nonlocal checkpoint
+        if isinstance(obj, dict):
+            ctype = obj.get("class_type", "")
+            inputs = obj.get("inputs", {})
+            if isinstance(inputs, dict):
+                ckpt = inputs.get("ckpt_name") or inputs.get("model_name")
+                if isinstance(ckpt, str) and ckpt and not checkpoint and ("Checkpoint" in ctype or "Loader" in ctype):
+                    checkpoint = Path(ckpt.replace("\\", "/")).name
+
+                # 1. Standard LoraLoader / LoraLoaderModelOnly
+                if "lora_name" in inputs:
+                    raw_lora = inputs.get("lora_name")
+                    if isinstance(raw_lora, str) and raw_lora and raw_lora.lower() != "none":
+                        cname = clean_lora_name(raw_lora)
+                        if cname not in seen_loras:
+                            seen_loras.add(cname)
+                            sm = inputs.get("strength_model", 1.0)
+                            loras.append(f"{cname}:{sm}" if sm != "" and sm != 1.0 else cname)
+
+                # 2. Lora Stack / XYInputs
+                for k, v in inputs.items():
+                    if k.startswith("lora_name_") or (k.startswith("lora_") and not k.startswith("lora_name")):
+                        if isinstance(v, str) and v and v.lower() != "none":
+                            cname = clean_lora_name(v)
+                            if cname not in seen_loras:
+                                seen_loras.add(cname)
+                                idx = k.split("_")[-1]
+                                sm = inputs.get(f"model_str_{idx}", inputs.get(f"strength_{idx}", 1.0))
+                                loras.append(f"{cname}:{sm}" if sm != "" and sm != 1.0 else cname)
+
+            for value in obj.values():
+                _extract_from_obj(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                _extract_from_obj(item)
+
+    _extract_from_obj(data)
+    return checkpoint, loras
 
 
 def find_text_inputs(data: Any) -> list[str]:
@@ -169,31 +332,6 @@ def find_text_inputs(data: Any) -> list[str]:
         for item in data:
             found.extend(find_text_inputs(item))
     return found
-
-
-def find_checkpoints_and_loras(data: Any) -> tuple[str, list[str]]:
-    checkpoint = ""
-    loras: list[str] = []
-    if isinstance(data, dict):
-        inputs = data.get("inputs", {})
-        if isinstance(inputs, dict):
-            ckpt = inputs.get("ckpt_name")
-            if isinstance(ckpt, str) and ckpt and not checkpoint:
-                checkpoint = ckpt
-            lora = inputs.get("lora_name")
-            if isinstance(lora, str) and lora:
-                strength = inputs.get("strength_model", "")
-                loras.append(f"{lora}:{strength}" if strength != "" else lora)
-        for value in data.values():
-            child_ckpt, child_loras = find_checkpoints_and_loras(value)
-            checkpoint = checkpoint or child_ckpt
-            loras.extend(child_loras)
-    elif isinstance(data, list):
-        for item in data:
-            child_ckpt, child_loras = find_checkpoints_and_loras(item)
-            checkpoint = checkpoint or child_ckpt
-            loras.extend(child_loras)
-    return checkpoint, loras
 
 
 def split_a1111_parameters(parameters: str) -> tuple[str, str, str]:
@@ -273,12 +411,27 @@ def extract_prompts(meta: dict[str, str]) -> tuple[str, str, str, str, str, str,
     generation_params = ""
 
     if prompt_data and isinstance(prompt_data, dict):
-        positive, negative = find_ksampler_connections(prompt_data)
+        positive, negative = find_ksampler_connections(prompt_data, workflow_data)
+
+    if not positive and workflow_data and isinstance(workflow_data, dict):
+        for node in workflow_data.get("nodes", []):
+            ntype = str(node.get("type", ""))
+            ntitle = str(node.get("title", ""))
+            if "CLIPTextEncode" in ntype or "正面" in ntitle or "positive" in ntitle.lower():
+                wv = node.get("widgets_values")
+                if isinstance(wv, list) and len(wv) > 0 and isinstance(wv[0], str) and wv[0].strip():
+                    positive = wv[0].strip()
+                    break
 
     if not positive and data is not None:
         texts = find_text_inputs(data)
-        positive = texts[0] if texts else ""
-        negative = texts[1] if len(texts) > 1 else ""
+        for t in texts:
+            if not any(bad in t.lower() for bad in ("worst quality", "low quality", "bad anatomy", "deformed")):
+                positive = t
+                break
+        if not positive and texts:
+            positive = texts[0]
+        negative = negative or (texts[1] if len(texts) > 1 else "")
 
     checkpoint, loras = find_checkpoints_and_loras(data) if data is not None else ("", [])
 
