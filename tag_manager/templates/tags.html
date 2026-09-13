@@ -27,7 +27,10 @@
       <button type="submit" class="search-go">搜索</button>
     </form>
 
-    <nav class="category-bar">
+    <nav class="category-bar" id="categoryBar">
+    <div class="category-filter-chip">
+      <input type="text" id="categoryFilterInput" placeholder="过滤大类..." oninput="filterCategoryTabs(this.value)" autocomplete="off">
+    </div>
     <a class="category-tab {% if not category %}active{% endif %}" href="{{ tag_url(q=q) }}">全部</a>
     {% for item in categories %}
       <span class="category-tab-wrap">
@@ -120,7 +123,7 @@
 <div class="tag-grid">
 {% for row in rows %}
   <article class="tag-tile" title="{{ row.notes }} {{ row.source }}">
-    <button type="button" class="tag-button" data-tag="{{ row.tag }}">
+    <button type="button" class="tag-button" data-tag="{{ row.tag }}" title="左键选择/取消，右键直接复制单词">
       <span class="tag-tile-zh">{{ row.zh or row.tag }}</span>
       <span class="tag-tile-en">{{ row.tag }}</span>
       <span class="tag-meta">{{ row.category }}{% if row.subcategory %} &middot; {{ row.subcategory }}{% endif %}</span>
@@ -131,7 +134,19 @@
             data-notes="{{ row.notes }}">编辑</button>
   </article>
 {% endfor %}
+{% if not rows %}
+  <div class="tag-empty-state" id="tagEmptyState">
+    <div class="empty-icon">
+      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg>
+    </div>
+    <h3>未找到匹配的 Tag</h3>
+    <p>当前分类或搜索无匹配结果，请尝试清除条件或搜索其他词汇。</p>
+    <button type="button" class="btn-reset-filter" onclick="resetTagFilters()">清空所有筛选</button>
+  </div>
+{% endif %}
 </div>
+<div class="tag-loading-more" id="tagLoadingMore" hidden><span class="loading-spinner"></span><span>正在加载更多 Tag...</span></div>
+<div class="tag-loaded-all" id="tagLoadedAll" hidden><span>已加载全部结果</span></div>
 <div id="tagScrollSentinel" aria-hidden="true"></div>
 
 <dialog id="tagEditModal" class="maintenance-dialog">
@@ -249,10 +264,19 @@
     writeSelectedTags(tags);
   }
   async function copySelectedTags() {
-    await navigator.clipboard.writeText(selectedBox.value);
+    const val = selectedBox.value.trim();
+    if (!val) {
+      if (window.showToast) window.showToast('当前未选择任何 Tag', 'info');
+      return;
+    }
+    await navigator.clipboard.writeText(val);
+    const count = selectedSet.size;
+    if (window.showToast) window.showToast('已复制 ' + count + ' 个 Tag 到剪贴板', 'success');
   }
   function clearSelectedTags() {
+    if (selectedSet.size === 0) return;
     writeSelectedTags([]);
+    if (window.showToast) window.showToast('已清空已选 Tag', 'info');
   }
   function normalizeSelectedTags() {
     const raw = selectedBox.value;
@@ -273,6 +297,7 @@
       }
     });
     writeSelectedTags(result);
+    if (window.showToast) window.showToast('已完成提示词规范化', 'success');
   }
   function toggleEditMode() {
     document.body.classList.toggle('edit-mode', document.getElementById('editModeToggle').checked);
@@ -283,7 +308,7 @@
   function tagTileHTML(row) {
     const meta = [row.category, row.subcategory].filter(Boolean).join(' · ');
     return `<article class="tag-tile" title="${escapeHTML([row.notes, row.source].filter(Boolean).join(' '))}">
-    <button type="button" class="tag-button" data-tag="${escapeHTML(row.tag)}">
+    <button type="button" class="tag-button" data-tag="${escapeHTML(row.tag)}" title="左键选择/取消，右键直接复制单词">
       <span class="tag-tile-zh">${escapeHTML(row.zh || row.tag)}</span>
       <span class="tag-tile-en">${escapeHTML(row.tag)}</span>
       <span class="tag-meta">${escapeHTML(meta)}</span>
@@ -306,28 +331,41 @@
   async function loadMoreTags() {
     if (loadingMoreTags || !hasMoreTags) return;
     loadingMoreTags = true;
+    const loadingEl = document.getElementById('tagLoadingMore');
+    const loadedAllEl = document.getElementById('tagLoadedAll');
+    if (loadingEl) loadingEl.hidden = false;
     try {
       const params = currentFilterParams();
       params.set('offset', nextTagOffset);
       params.set('limit', tagPageLimit);
       const resp = await fetch('/api/tags/page?' + params.toString());
-      if (!resp.ok) return;
+      if (!resp.ok) {
+        if (window.showToast) window.showToast('加载失败，请检查网络', 'error');
+        return;
+      }
       const data = await resp.json();
-      if (!data.rows.length) { hasMoreTags = false; return; }
+      if (!data.rows.length) {
+        hasMoreTags = false;
+        if (loadedAllEl) loadedAllEl.hidden = false;
+        return;
+      }
       data.rows.forEach(row => {
         tagLookup[row.tag] = {zh: row.zh || '', category: row.category || '', subcategory: row.subcategory || ''};
       });
       const tpl = document.createElement('template');
       tpl.innerHTML = data.rows.map(tagTileHTML).join('');
-      // 只同步新追加片段的选中态；已选集合未变化，无需重绘预览
       syncSelectedButtons(tpl.content);
       grid.appendChild(tpl.content);
       nextTagOffset = data.next_offset;
       hasMoreTags = data.has_more;
+      if (!hasMoreTags && loadedAllEl) loadedAllEl.hidden = false;
       const loaded = document.getElementById('loadedTagCount');
       if (loaded) loaded.textContent = String(nextTagOffset);
+    } catch(e) {
+      if (window.showToast) window.showToast('加载更多 Tag 失败', 'error');
     } finally {
       loadingMoreTags = false;
+      if (loadingEl) loadingEl.hidden = true;
     }
   }
 
@@ -418,18 +456,52 @@
     }, 200);
   }
 
+  function adjustTagWeight(tag, delta) {
+    const match = tag.match(/^\((.+):([0-9.]+)\)$/);
+    let base = tag;
+    let w = 1.0;
+    if (match) {
+      base = match[1];
+      w = parseFloat(match[2]);
+    } else if (tag.startsWith('(') && tag.endsWith(')') && !tag.includes(':')) {
+      base = tag.slice(1, -1);
+      w = 1.1;
+    }
+    let newW = Math.round((w + delta) * 10) / 10;
+    if (newW <= 0.1) newW = 0.1;
+    if (newW > 3.0) newW = 3.0;
+    if (newW === 1.0) return base;
+    return '(' + base + ':' + newW.toFixed(1) + ')';
+  }
+
+  function updateTagAt(index, newTag) {
+    const tags = splitTags(selectedBox.value);
+    if (index >= 0 && index < tags.length) {
+      tags[index] = newTag;
+      writeSelectedTags(tags);
+    }
+  }
+
   function renderTagPreview() {
     // 异步中文释义返回时不得销毁正在拖动的节点，拖动结束后会统一重绘。
     if (!preview || previewDragIndex >= 0) return;
     const tags = splitTags(selectedBox.value);
     preview.innerHTML = tags.map((tag, index) => {
-      const data = tagLookup[tag];
+      const cleanTag = tag.replace(/^\((.+):[0-9.]+\)$/, '$1').replace(/^\((.+)\)$/, '$1');
+      const data = tagLookup[cleanTag] || tagLookup[tag];
       const zh = data ? (data.zh || '未填写中文含义') : '查询中...';
       const missing = data && (data.missing || !data.zh);
-      return `<button type="button" class="tag-preview-item${missing ? ' missing' : ''}" draggable="true" data-index="${index}" data-tag="${escapeHTML(tag)}" title="拖动排序，点击取消选择">
-      <span class="tag-preview-en">${escapeHTML(tag)}</span>
-      <span class="tag-preview-zh">${escapeHTML(zh)}</span>
-    </button>`;
+      return `<div class="tag-preview-item${missing ? ' missing' : ''}" draggable="true" data-index="${index}" data-tag="${escapeHTML(tag)}">
+      <div class="tag-preview-body" title="拖动排序，点击取消选择">
+        <span class="tag-preview-en">${escapeHTML(tag)}</span>
+        <span class="tag-preview-zh">${escapeHTML(zh)}</span>
+      </div>
+      <div class="tag-preview-tools">
+        <button type="button" class="tag-weight-btn" data-action="minus" title="降低权重 (-0.1)">-</button>
+        <button type="button" class="tag-weight-btn" data-action="plus" title="增加权重 (+0.1)">+</button>
+        <button type="button" class="tag-preview-del" data-action="remove" title="移除此 Tag">×</button>
+      </div>
+    </div>`;
     }).join('');
     lookupMissingPreviewTags(tags);
   }
@@ -640,7 +712,21 @@
     currentSubcategory = data.subcategory;
     renderCategoryBar(data);
     renderSubcategoryBar(data);
-    grid.innerHTML = data.rows.map(tagTileHTML).join('');
+    if (data.rows.length === 0) {
+      const filterLabel = data.q ? `关键词「${escapeHTML(data.q)}」` : '当前筛选条件';
+      grid.innerHTML = `<div class="tag-empty-state">
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg>
+        </div>
+        <h3>未找到匹配的 Tag</h3>
+        <p>没有找到与 ${filterLabel} 匹配的内容，请尝试更换搜索词或清除筛选条件。</p>
+        <button type="button" class="btn-reset-filter" onclick="resetTagFilters()">清空所有筛选</button>
+      </div>`;
+    } else {
+      grid.innerHTML = data.rows.map(tagTileHTML).join('');
+    }
+    const loadedAllEl = document.getElementById('tagLoadedAll');
+    if (loadedAllEl) loadedAllEl.hidden = data.has_more || data.rows.length === 0;
     data.rows.forEach(row => {
       tagLookup[row.tag] = {zh: row.zh || '', category: row.category || '', subcategory: row.subcategory || ''};
     });
@@ -653,6 +739,26 @@
     if (document.getElementById('editModeToggle').checked) {
       document.body.classList.add('edit-mode');
     }
+  }
+
+  function resetTagFilters() {
+    const input = document.getElementById('tagSearchInput');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('tagSearchClear');
+    if (clearBtn) clearBtn.hidden = true;
+    ajaxNavigate('/tags');
+  }
+
+  function filterCategoryTabs(text) {
+    const val = (text || '').trim().toLowerCase();
+    const bar = document.getElementById('categoryBar');
+    if (!bar) return;
+    bar.querySelectorAll('.category-tab-wrap').forEach(wrap => {
+      const tab = wrap.querySelector('.category-tab');
+      if (!tab) return;
+      const name = tab.textContent.toLowerCase();
+      wrap.style.display = (!val || name.indexOf(val) >= 0) ? '' : 'none';
+    });
   }
 
   // ─── 搜索：防抖即时局部刷新 + 清除按钮 ─────────────────────────────────
@@ -742,6 +848,18 @@
     const tagBtn = e.target.closest('.tag-button');
     if (tagBtn) toggleTagSelection(tagBtn);
   });
+  on(grid, 'contextmenu', function(e) {
+    const tagBtn = e.target.closest('.tag-button');
+    if (tagBtn) {
+      e.preventDefault();
+      const tag = tagBtn.dataset.tag;
+      if (tag) {
+        navigator.clipboard.writeText(tag).then(() => {
+          if (window.showToast) window.showToast('已复制单词：「' + tag + '」', 'success', 1500);
+        });
+      }
+    }
+  });
 
   on(categoryBar, 'click', function(e) {
     const del = e.target.closest('[data-delete-category]');
@@ -759,8 +877,26 @@
   });
 
   on(preview, 'click', function(e) {
+    const actionBtn = e.target.closest('button[data-action]');
     const item = e.target.closest('.tag-preview-item');
-    if (item && !previewDragMoved) removePreviewTag(item.dataset.tag);
+    if (!item) return;
+    const index = Number(item.dataset.index);
+    const tag = item.dataset.tag;
+    if (actionBtn) {
+      e.stopPropagation();
+      const action = actionBtn.dataset.action;
+      if (action === 'minus') {
+        updateTagAt(index, adjustTagWeight(tag, -0.1));
+      } else if (action === 'plus') {
+        updateTagAt(index, adjustTagWeight(tag, 0.1));
+      } else if (action === 'remove') {
+        removePreviewTag(tag);
+      }
+      return;
+    }
+    if (!previewDragMoved && e.target.closest('.tag-preview-body')) {
+      removePreviewTag(tag);
+    }
   });
   on(preview, 'dragstart', function(e) {
     const item = e.target.closest('.tag-preview-item');
@@ -888,6 +1024,9 @@
   window.toggleEditMode = toggleEditMode;
   window.handleSubcategoryNew = handleSubcategoryNew;
   window.deleteCurrentTag = deleteCurrentTag;
+  window.resetTagFilters = resetTagFilters;
+  window.writeSelectedTags = writeSelectedTags;
+  window.filterCategoryTabs = filterCategoryTabs;
 
   // 局部导航离开前由 base.html 调用：断开 Observer、拆除监听、中止在途请求
   window.__wardrobePageCleanup = function() {

@@ -207,6 +207,8 @@ class LoraTemplateContractTests(unittest.TestCase):
         self.assertIn("lora-card", self.template)
         self.assertIn("copyLoraTriggers", self.template)
         self.assertIn("uploadLoraPreview", self.template)
+        self.assertIn('id="loraImageDialog"', self.template)
+        self.assertIn("openLoraPreview", self.template)
 
     def test前端只传header不过整文件(self) -> None:
         self.assertIn("file.slice(0, 8)", self.template)
@@ -219,12 +221,13 @@ class LoraTemplateContractTests(unittest.TestCase):
         self.assertIn(".lora-badge", self.style)
         self.assertIn(".lora-upload", self.style)
 
-    def test预览图裁剪顶部对齐保头部(self) -> None:
-        # 角色立绘 cover 裁剪须锚定顶部，避免只截取身体部分
+    def test预览图居中并支持查看完整大图(self) -> None:
         self.assertIn(
-            ".lora-card-preview img { width: 100%; height: 100%; object-fit: cover; object-position: center top;",
+            ".lora-card-preview img { width: 100%; height: 100%; object-fit: contain; object-position: center;",
             self.style,
         )
+        self.assertIn(".lora-card-preview { position: relative; aspect-ratio: 2 / 3;", self.style)
+        self.assertIn(".lora-image-dialog", self.style)
 
 
 if __name__ == "__main__":

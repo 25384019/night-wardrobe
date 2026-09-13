@@ -3,8 +3,22 @@
 <div class="page-head">
   <h1>角色卡</h1>
   <div class="page-head-actions">
+    <button type="button" onclick="document.getElementById('inspect-panel').style.display='flex'">解析图片导入</button>
     <button onclick="document.getElementById('add-panel').style.display='flex'">+ 新增角色</button>
   </div>
+</div>
+
+<div id="inspect-panel" class="floating-panel character-inspect-panel" style="display:none">
+  <div class="panel-header"><span>图片解析 → 角色卡</span><button class="panel-close" onclick="this.closest('.floating-panel').style.display='none'">&times;</button></div>
+  <div class="inspect-file-row"><input type="file" id="inspect-file" accept=".png,.jpg,.jpeg,.webp"><button type="button" id="inspect-parse" onclick="parseInspection()" disabled>解析图片</button></div>
+  <img id="inspect-preview" class="inspect-preview" hidden>
+  <input id="inspect-name" placeholder="角色名（默认使用文件名）">
+  <input id="inspect-lora" placeholder="LoRA 名称">
+  <input id="inspect-weight" type="number" step="0.1" value="1.0" placeholder="LoRA 权重">
+  <input id="inspect-trigger" placeholder="触发词（逗号分隔）">
+  <textarea id="inspect-positive" rows="4" placeholder="解析出的正向 Prompt"></textarea>
+  <textarea id="inspect-notes" rows="2" placeholder="备注 / 负向 Prompt"></textarea>
+  <button type="button" onclick="importInspection()">一键导入角色卡</button><span id="inspect-status"></span>
 </div>
 
 <div class="toolbar">
@@ -38,15 +52,23 @@
 <div class="char-grid">
 {% for row in rows %}
   <article class="char-card">
+    <div class="char-card-preview">
+      {% if row.preview_image %}<img src="/character-previews/{{ row.preview_image }}" alt="{{ row.name }}" loading="lazy">{% else %}<span>角色预览</span>{% endif %}
+    </div>
     <div class="char-card-header">
       <h3>{{ row.name }}</h3>
       <div class="char-actions">
-        <button class="btn-sm" onclick="editChar({{ row.id }})">编辑</button>
+        <button type="button" class="btn-sm" onclick="sendCharToWorkbench({{ row.id }})" title="将角色 LoRA、触发词与外貌填入提示词工作台">+ 填入工作台</button>
+        <button type="button" class="btn-sm" onclick="copyFullCharPrompt(this, {{ row.id }})" title="复制角色全部提示词">完整 Prompt</button>
+        <button type="button" class="btn-sm" onclick="editChar({{ row.id }})">编辑</button>
         <form method="post" action="/characters/{{ row.id }}/delete" style="display:inline" onsubmit="return confirm('删除角色「{{ row.name }}」及其所有服装？')">
           <button class="btn-sm btn-danger">删除</button>
         </form>
       </div>
     </div>
+    <form class="char-preview-upload" method="post" action="/characters/{{ row.id }}/preview" enctype="multipart/form-data">
+      <label class="btn-sm">上传预览图<input type="file" name="file" accept=".png,.jpg,.jpeg,.webp" hidden onchange="this.form.submit()"></label>
+    </form>
     {% if row.lora %}
     <div class="char-field">
       <label>LoRA</label>
@@ -89,7 +111,9 @@
       <div class="outfit-item">
         <strong>{{ outfit.name }}</strong>
         <span class="outfit-tags">{{ outfit.tags[:80] }}{% if outfit.tags|length > 80 %}...{% endif %}</span>
-        <button class="btn-copy" onclick="copyText(this, '{{ outfit.tags|replace("'", "\\'") }}')">复制</button>
+        <button type="button" class="btn-copy" onclick="copyText(this, '{{ outfit.tags|replace("'", "\\'") }}')" title="仅复制此套服装标签">单件</button>
+        <button type="button" class="btn-copy" onclick="copyFullCharPrompt(this, {{ row.id }}, {{ outfit.id }})" title="复制角色+此服装整套 Prompt">整套</button>
+        <button type="button" class="btn-copy" onclick="sendCharToWorkbench({{ row.id }}, {{ outfit.id }})" title="将角色+此服装填入提示词工作台">+ 填入</button>
         <form method="post" action="/characters/{{ row.id }}/outfits/{{ outfit.id }}/delete" style="display:inline" onsubmit="return confirm('删除套组？')">
           <button class="btn-sm btn-danger">x</button>
         </form>
@@ -99,7 +123,14 @@
   </article>
 {% endfor %}
 {% if not rows %}
-  <p class="empty-hint">暂无角色卡，点击「+ 新增角色」添加。</p>
+  <div class="tag-empty-state">
+    <div class="empty-icon">
+      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg>
+    </div>
+    <h3>暂无匹配的角色卡</h3>
+    <p>{% if q %}没有找到与「{{ q }}」匹配的角色，请尝试其他搜索词。{% else %}点击上方「+ 新增角色」或「解析图片导入」开始创建。{% endif %}</p>
+    {% if q %}<a class="btn-reset-filter" href="/characters">清空搜索</a>{% endif %}
+  </div>
 {% endif %}
 </div>
 
@@ -134,10 +165,124 @@ var charsData = {
 {% endfor %}
 };
 
+var outfitsData = {
+{% for row in rows %}
+  {% for outfit in outfit_map.get(row.id, []) %}
+  {{ outfit.id }}: {
+    id: {{ outfit.id }},
+    character_id: {{ row.id }},
+    name: {{ outfit.name|tojson }},
+    tags: {{ outfit.tags|tojson }}
+  },
+  {% endfor %}
+{% endfor %}
+};
+
+function buildCharacterPrompt(charId, outfitId) {
+  var d = charsData[charId];
+  if (!d) return '';
+  var parts = [];
+  if (d.lora) {
+    parts.push('<lora:' + d.lora + ':' + (d.lora_weight || 1.0) + '>');
+  }
+  if (d.trigger_words && d.trigger_words.trim()) {
+    parts.push(d.trigger_words.trim());
+  }
+  if (d.appearance && d.appearance.trim()) {
+    parts.push(d.appearance.trim());
+  }
+  if (outfitId && outfitsData[outfitId]) {
+    var outfit = outfitsData[outfitId];
+    if (outfit.tags && outfit.tags.trim()) {
+      parts.push(outfit.tags.trim());
+    }
+  }
+  return parts.join(', ');
+}
+
+function sendCharToWorkbench(charId, outfitId) {
+  var full = buildCharacterPrompt(charId, outfitId);
+  var d = charsData[charId];
+  var label = d ? d.name : '角色';
+  if (outfitId && outfitsData[outfitId]) {
+    label += ' + ' + outfitsData[outfitId].name;
+  }
+  if (window.appendTagsToWorkbench) {
+    window.appendTagsToWorkbench(full, {label: label});
+  }
+}
+
+function copyFullCharPrompt(btn, charId, outfitId) {
+  var full = buildCharacterPrompt(charId, outfitId);
+  if (!full) {
+    if (window.showToast) window.showToast('该角色无可复制的提示词', 'info');
+    return;
+  }
+  navigator.clipboard.writeText(full).then(function() {
+    btn.textContent = '已复制';
+    setTimeout(function() { btn.textContent = outfitId ? '整套' : '完整 Prompt'; }, 1200);
+    if (window.showToast) window.showToast('已复制组合 Prompt 到剪贴板', 'success');
+  }).catch(function() {
+    if (window.showToast) window.showToast('复制失败，请检查剪贴板权限', 'error');
+  });
+}
+
+var inspectedFile = null;
+document.getElementById('inspect-file').addEventListener('change', event => {
+  inspectedFile = event.target.files[0];
+  document.getElementById('inspect-parse').disabled = !inspectedFile;
+  document.getElementById('inspect-status').textContent = inspectedFile ? '已选择图片，请点击解析' : '';
+});
+async function parseInspection() {
+  if (!inspectedFile) return;
+  const form = new FormData(); form.append('file', inspectedFile);
+  if (window.showToast) window.showToast('正在解析图片元数据...', 'info', 2000);
+  try {
+    const response = await fetch('/api/characters/inspect', {method: 'POST', body: form});
+    if (!response.ok) {
+      document.getElementById('inspect-status').textContent = '解析失败';
+      if (window.showToast) window.showToast('图片元数据解析失败', 'error');
+      return;
+    }
+    const data = await response.json();
+    document.getElementById('inspect-name').value = data.name;
+    document.getElementById('inspect-lora').value = data.lora;
+    document.getElementById('inspect-weight').value = data.lora_weight;
+    document.getElementById('inspect-trigger').value = data.trigger_words;
+    document.getElementById('inspect-positive').value = data.positive_prompt;
+    const image = document.getElementById('inspect-preview'); image.src = URL.createObjectURL(inspectedFile); image.hidden = false;
+    document.getElementById('inspect-status').textContent = '解析完成，可编辑后导入';
+    if (window.showToast) window.showToast('图片解析成功！已提取角色与参数', 'success');
+  } catch(e) {
+    document.getElementById('inspect-status').textContent = '请求异常';
+    if (window.showToast) window.showToast('解析请求失败，请重试', 'error');
+  }
+}
+async function importInspection() {
+  if (!inspectedFile) return;
+  const form = new FormData(); form.append('file', inspectedFile); form.append('name', document.getElementById('inspect-name').value); form.append('lora', document.getElementById('inspect-lora').value); form.append('lora_weight', document.getElementById('inspect-weight').value); form.append('trigger_words', document.getElementById('inspect-trigger').value); form.append('appearance', document.getElementById('inspect-positive').value); form.append('notes', document.getElementById('inspect-notes').value);
+  try {
+    const response = await fetch('/api/characters/import-inspection', {method: 'POST', body: form});
+    if (response.ok) {
+      if (window.showToast) window.showToast('角色卡导入成功，即将刷新', 'success');
+      setTimeout(() => location.reload(), 400);
+    } else {
+      document.getElementById('inspect-status').textContent = '导入失败';
+      if (window.showToast) window.showToast('导入失败，请检查参数', 'error');
+    }
+  } catch(e) {
+    if (window.showToast) window.showToast('导入失败，请重试', 'error');
+  }
+}
+
 function copyText(btn, text) {
+  if (!text) return;
   navigator.clipboard.writeText(text).then(() => {
     btn.textContent = '已复制';
     setTimeout(() => btn.textContent = '复制', 1200);
+    if (window.showToast) window.showToast('已复制到剪贴板', 'success');
+  }).catch(() => {
+    if (window.showToast) window.showToast('复制失败，请检查权限', 'error');
   });
 }
 

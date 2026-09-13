@@ -50,6 +50,8 @@ from .lora_routes import LORA_PREVIEW_DIR
 from .lora_routes import router as lora_router
 from .manga_routes import router as manga_router
 from .manga_service import manga_service
+from .outputs_routes import router as outputs_router
+from .outputs_service import scan_outputs
 from .tag_api import router as tag_api_router
 from .video_decrypt_routes import router as video_decrypt_router
 from .video_decrypt_service import video_decrypt_service
@@ -62,6 +64,7 @@ app.include_router(tag_api_router)
 app.include_router(video_decrypt_router)
 app.include_router(lora_router)
 app.include_router(manga_router)
+app.include_router(outputs_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -84,6 +87,8 @@ app.mount("/lora-previews", StaticFiles(directory=str(LORA_PREVIEW_DIR)), name="
 def startup() -> None:
     init_db()
     scan_gallery(initialize_db=False)
+    import threading
+    threading.Thread(target=scan_outputs, daemon=True).start()
     video_decrypt_service.startup()
     manga_service.startup()
 
@@ -872,27 +877,41 @@ RECIPE_TYPES = [
 
 
 @app.get("/recipes", response_class=HTMLResponse)
-def recipes(request: Request, type: str = "", q: str = ""):
-    query = "SELECT * FROM recipes WHERE 1=1"
-    params: list[str] = []
+def recipes(request: Request, type: str = "", q: str = "", offset: int = 0, limit: int = 60):
+    where_clauses = ["1=1"]
+    params: list[Any] = []
     if type:
-        query += " AND type = ?"
+        where_clauses.append("type = ?")
         params.append(type)
     if q:
-        query += " AND (name LIKE ? OR positive_prompt LIKE ? OR negative_prompt LIKE ? OR notes LIKE ?)"
+        where_clauses.append("(name LIKE ? OR positive_prompt LIKE ? OR negative_prompt LIKE ? OR notes LIKE ?)")
         like = f"%{q}%"
         params.extend([like, like, like, like])
-    query += " ORDER BY type, updated_at DESC LIMIT 200"
+
+    where_sql = " AND ".join(where_clauses)
     with connect() as conn:
-        rows = conn.execute(query, params).fetchall()
+        total = conn.execute(f"SELECT COUNT(*) FROM recipes WHERE {where_sql}", params).fetchone()[0]
+        query = f"SELECT * FROM recipes WHERE {where_sql} ORDER BY type, updated_at DESC LIMIT ? OFFSET ?"
+        rows = conn.execute(query, [*params, limit, offset]).fetchall()
         counts = conn.execute(
             "SELECT type, COUNT(*) as count FROM recipes GROUP BY type"
         ).fetchall()
     count_map = {r["type"]: r["count"] for r in counts}
+    page = (offset // limit) + 1 if limit > 0 else 1
     return templates.TemplateResponse(
         request,
         "recipes.html",
-        {"rows": rows, "type": type, "q": q, "recipe_types": RECIPE_TYPES, "count_map": count_map},
+        {
+            "rows": rows,
+            "type": type,
+            "q": q,
+            "recipe_types": RECIPE_TYPES,
+            "count_map": count_map,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "page": page,
+        },
     )
 
 
@@ -1044,6 +1063,8 @@ def get_recipes_data(recipe_type: str = "") -> list[dict]:
     if recipe_type:
         query += " WHERE type = ?"
         params.append(recipe_type)
+    else:
+        query += " WHERE type != 'codex_prompt'"
     query += " ORDER BY type, updated_at DESC"
     with connect() as conn:
         return [dict(row) for row in conn.execute(query, params).fetchall()]

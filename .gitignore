@@ -25,3 +25,8 @@ build/
 node_modules/
 .pytest_cache/
 *.log
+*.docx
+*.xlsx
+tag_library_*.json
+tag_manager/character_previews/*
+!tag_manager/character_previews/.gitkeep

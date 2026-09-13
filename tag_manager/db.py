@@ -155,6 +155,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 type TEXT NOT NULL DEFAULT 'scene',
+                import_key TEXT,
                 positive_prompt TEXT DEFAULT '',
                 negative_prompt TEXT DEFAULT '',
                 params_json TEXT DEFAULT '',
@@ -262,8 +263,44 @@ def init_db(db_path: Path = DB_PATH) -> None:
 
             CREATE INDEX IF NOT EXISTS idx_copilot_messages_session_id
             ON copilot_messages(session_id);
+
+            CREATE TABLE IF NOT EXISTS output_images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rel_path TEXT NOT NULL UNIQUE,
+                filename TEXT NOT NULL,
+                file_date TEXT NOT NULL,
+                file_time TEXT DEFAULT '',
+                file_mtime REAL DEFAULT 0,
+                file_size INTEGER DEFAULT 0,
+                width INTEGER DEFAULT 0,
+                height INTEGER DEFAULT 0,
+                positive_prompt TEXT DEFAULT '',
+                negative_prompt TEXT DEFAULT '',
+                checkpoint TEXT DEFAULT '',
+                loras TEXT DEFAULT '',
+                workflow_json TEXT DEFAULT '',
+                prompt_json TEXT DEFAULT '',
+                parameters TEXT DEFAULT '',
+                generation_params TEXT DEFAULT '',
+                metadata_source TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_output_images_date
+            ON output_images(file_date DESC, file_mtime DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_output_images_mtime
+            ON output_images(file_mtime DESC);
             """
         )
+        recipe_columns = {row["name"] for row in conn.execute("PRAGMA table_info(recipes)")}
+        if "import_key" not in recipe_columns:
+            conn.execute("ALTER TABLE recipes ADD COLUMN import_key TEXT")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_recipes_import_key ON recipes(import_key) WHERE import_key IS NOT NULL")
+        character_columns = {row["name"] for row in conn.execute("PRAGMA table_info(characters)")}
+        if "preview_image" not in character_columns:
+            conn.execute("ALTER TABLE characters ADD COLUMN preview_image TEXT DEFAULT ''")
         default_categories = [
             ("1.镜头", "tag", 10),
             ("2.人物", "tag", 20),
@@ -511,6 +548,14 @@ def update_lora_card_preview(card_id: int, preview_image: str, connect_factory=c
         conn.execute(
             "UPDATE lora_cards SET preview_image=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (preview_image, card_id),
+        )
+
+
+def update_lora_card_triggers(card_id: int, trigger_words: str, connect_factory=connect) -> None:
+    with connect_factory() as conn:
+        conn.execute(
+            "UPDATE lora_cards SET trigger_words=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (clean_text(trigger_words), card_id),
         )
 
 

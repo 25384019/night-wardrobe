@@ -1,0 +1,544 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="outputs-container" id="outputs-app">
+  <!-- 顶部工具栏 -->
+  <header class="outputs-header">
+    <div class="outputs-title-group">
+      <div class="outputs-title-row">
+        <h1 class="outputs-title">生图查看</h1>
+        <span class="outputs-badge" id="total-count-badge">{{ total_images_in_db }} 张图片</span>
+        <span class="outputs-badge outputs-badge-dates">{{ dates | length }} 个生成日</span>
+      </div>
+      <div class="outputs-dir-row">
+        <span class="outputs-dir-label">输出目录：</span>
+        <code class="outputs-dir-path" title="{{ configured_dir }}">{{ configured_dir }}</code>
+        <button type="button" class="btn btn-secondary btn-xs" id="btn-change-folder">更改目录</button>
+        <button type="button" class="btn btn-primary btn-xs" id="btn-rescan">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="vertical-align:-1px;margin-right:3px;"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+          刷新扫描
+        </button>
+      </div>
+    </div>
+
+    <!-- 筛选过滤条 -->
+    <form class="outputs-filter-bar" method="get" action="/outputs">
+      {% if selected_date %}
+      <input type="hidden" name="date" value="{{ selected_date }}">
+      {% endif %}
+      <div class="outputs-search-wrap">
+        <svg class="outputs-search-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" name="q" value="{{ q }}" class="input search-input" placeholder="搜索提示词、LoRA、模型或文件名...">
+        {% if q %}
+        <a href="/outputs{% if selected_date %}?date={{ selected_date }}{% endif %}" class="clear-search-btn" title="清除搜索">&times;</a>
+        {% endif %}
+      </div>
+
+      {% if available_checkpoints %}
+      <select name="checkpoint" class="select outputs-select" onchange="this.form.submit()">
+        <option value="">全部模型 ({{ available_checkpoints | length }})</option>
+        {% for ckpt in available_checkpoints %}
+        <option value="{{ ckpt }}" {% if checkpoint == ckpt %}selected{% endif %}>{{ ckpt }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+
+      <select name="order" class="select outputs-select" onchange="this.form.submit()">
+        <option value="desc" {% if order == 'desc' %}selected{% endif %}>最新生成优先</option>
+        <option value="asc" {% if order == 'asc' %}selected{% endif %}>最早生成优先</option>
+      </select>
+    </form>
+  </header>
+
+  <!-- 主体内容：左侧日期时间线 + 右侧生图流 -->
+  <div class="outputs-main-layout">
+    <!-- 左侧日期导航 -->
+    <aside class="outputs-date-sidebar">
+      <div class="outputs-date-header">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+        <span>日期归档</span>
+      </div>
+      <div class="outputs-date-list">
+        <a href="/outputs{% if q %}?q={{ q }}{% endif %}" class="outputs-date-item {% if not selected_date %}active{% endif %}">
+          <span class="outputs-date-name">📅 全部日期</span>
+          <span class="outputs-date-count">{{ total_images_in_db }}</span>
+        </a>
+        {% for d in dates %}
+        <a href="/outputs?date={{ d.file_date }}{% if q %}&q={{ q }}{% endif %}{% if checkpoint %}&checkpoint={{ checkpoint }}{% endif %}{% if order %}&order={{ order }}{% endif %}"
+           class="outputs-date-item {% if selected_date == d.file_date %}active{% endif %}"
+           title="{{ d.file_date }}">
+          <span class="outputs-date-name">{{ d.label }}</span>
+          <span class="outputs-date-count">{{ d.count }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <!-- 右侧生图卡片网格 -->
+    <section class="outputs-grid-section">
+      {% if selected_date %}
+      <div class="outputs-active-filter-banner">
+        <span>当前查看日期：<strong>{{ selected_date }}</strong></span>
+        <span class="filter-count">（匹配 {{ total_filtered }} 张）</span>
+        <a href="/outputs{% if q %}?q={{ q }}{% endif %}" class="btn-clear-date">查看全部日期</a>
+      </div>
+      {% endif %}
+
+      {% if not images %}
+      <div class="empty-state">
+        <div class="empty-state-icon">🖼️</div>
+        <h3>未找到符合条件的生图记录</h3>
+        <p>当前目录或所选筛选条件下没有图片。您可以点击“刷新扫描”或调整筛选条件。</p>
+        <button type="button" class="btn btn-primary" onclick="rescanOutputs()">立刻扫描输出目录</button>
+      </div>
+      {% else %}
+
+      {% for sec in date_sections %}
+      <div class="outputs-date-group" id="date-group-{{ sec.file_date }}">
+        <div class="outputs-group-header">
+          <div class="outputs-group-title">
+            <span class="outputs-group-calendar-icon">📅</span>
+            <span class="outputs-group-date-text">{{ sec.file_date }}</span>
+            <span class="outputs-group-count">({{ sec.images | length }} 张)</span>
+          </div>
+          <button type="button" class="btn btn-secondary btn-xs btn-copy-date-prompts" data-date="{{ sec.file_date }}" title="复制这一天所有图片的正面提示词">
+            📋 复制本日 Prompt
+          </button>
+        </div>
+
+        <div class="outputs-cards-grid">
+          {% for img in sec.images %}
+          <div class="output-card" data-id="{{ img.id }}" data-path="{{ img.rel_path }}">
+            <div class="output-card-preview" onclick="openOutputDetail({{ img.id }})">
+              <img src="/outputs/file?path={{ img.rel_path | urlpath }}"
+                   alt="{{ img.filename }}"
+                   loading="lazy"
+                   onerror="this.parentElement.innerHTML='<div class=\'img-broken\'>无法加载</div>'">
+              <div class="output-card-overlay">
+                <button type="button" class="btn-overlay-action" title="放大查看 & 工作流" onclick="event.stopPropagation(); openOutputDetail({{ img.id }})">🔍 查看</button>
+                <button type="button" class="btn-overlay-action" title="填入工作台" onclick="event.stopPropagation(); appendOutputPrompt({{ img.id }})">⚡ 工作台</button>
+                <button type="button" class="btn-overlay-action" title="收藏到提示词图库" onclick="event.stopPropagation(); favoriteOutputImage('{{ img.rel_path }}')">⭐ 收藏</button>
+              </div>
+              <span class="output-time-badge">{{ img.file_time }}</span>
+            </div>
+
+            <div class="output-card-info">
+              <div class="output-card-meta-row">
+                {% if img.width and img.height %}
+                <span class="output-res-tag">{{ img.width }}×{{ img.height }}</span>
+                {% endif %}
+                {% if img.checkpoint %}
+                <span class="output-ckpt-tag" title="{{ img.checkpoint }}">{{ img.checkpoint[:14] }}{% if img.checkpoint|length > 14 %}...{% endif %}</span>
+                {% endif %}
+              </div>
+              <div class="output-card-prompt" title="{{ img.positive_prompt }}">
+                {{ img.positive_prompt or '（无嵌入提示词元数据）' }}
+              </div>
+              <div class="output-card-actions">
+                <button type="button" class="btn-card-icon" title="复制提示词" onclick="copyOutputPrompt({{ img.id }})">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                </button>
+                <button type="button" class="btn-card-icon" title="填入提示词工作台" onclick="appendOutputPrompt({{ img.id }})">
+                  ⚡
+                </button>
+                <button type="button" class="btn-card-icon" title="收藏到图库" onclick="favoriteOutputImage('{{ img.rel_path }}')">
+                  ⭐
+                </button>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- 分页控制 -->
+      {% if total_pages > 1 %}
+      <div class="pagination-bar">
+        <div class="pagination-info">共 {{ total_filtered }} 张图片，第 {{ page }} / {{ total_pages }} 页</div>
+        <div class="pagination-controls">
+          {% if page > 1 %}
+          <a href="/outputs?page={{ page - 1 }}{% if selected_date %}&date={{ selected_date }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if checkpoint %}&checkpoint={{ checkpoint }}{% endif %}{% if order %}&order={{ order }}{% endif %}" class="btn btn-secondary btn-sm">上一页</a>
+          {% endif %}
+          <span class="pagination-current">{{ page }}</span>
+          {% if page < total_pages %}
+          <a href="/outputs?page={{ page + 1 }}{% if selected_date %}&date={{ selected_date }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if checkpoint %}&checkpoint={{ checkpoint }}{% endif %}{% if order %}&order={{ order }}{% endif %}" class="btn btn-secondary btn-sm">下一页</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% endif %}
+    </section>
+  </div>
+
+  <!-- 生图详情与工作流 Lightbox 模态弹窗 -->
+  <div id="output-modal" class="output-modal" style="display:none;" onclick="if(event.target===this)closeOutputModal()">
+    <div class="output-modal-dialog">
+      <button type="button" class="output-modal-close" onclick="closeOutputModal()">&times;</button>
+      
+      <!-- 左右分栏 -->
+      <div class="output-modal-body">
+        <!-- 左侧大图 -->
+        <div class="output-modal-image-col">
+          <div class="output-modal-img-wrap">
+            <img id="modal-img" src="" alt="生成图片预览" draggable="true">
+          </div>
+          <div class="output-modal-nav-bar">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-modal-prev" onclick="navigateModalImage(-1)">◀ 上一张 (←)</button>
+            <span id="modal-image-counter" class="modal-counter">1 / 1</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-modal-next" onclick="navigateModalImage(1)">下一张 (→) ▶</button>
+          </div>
+          <p class="output-drag-hint">💡 提示：可直接将上方图片拖入 ComfyUI 界面加载生成工作流</p>
+        </div>
+
+        <!-- 右侧元数据 -->
+        <div class="output-modal-info-col">
+          <div class="modal-header-meta">
+            <h3 id="modal-filename" class="modal-title">图片详情</h3>
+            <div class="modal-tags-row">
+              <span id="modal-date-time" class="badge"></span>
+              <span id="modal-resolution" class="badge"></span>
+              <span id="modal-filesize" class="badge"></span>
+            </div>
+          </div>
+
+          <div class="modal-section">
+            <div class="modal-section-title">
+              <span>正面提示词 (Prompt)</span>
+              <button type="button" class="btn btn-secondary btn-xs" onclick="copyModalPrompt()">复制</button>
+              <button type="button" class="btn btn-primary btn-xs" onclick="appendModalPrompt()">⚡ 填入工作台</button>
+            </div>
+            <textarea id="modal-prompt" class="modal-textarea" readonly rows="4"></textarea>
+          </div>
+
+          <div class="modal-section" id="modal-neg-section">
+            <div class="modal-section-title">
+              <span>负面提示词 (Negative Prompt)</span>
+              <button type="button" class="btn btn-secondary btn-xs" onclick="copyModalNegative()">复制</button>
+            </div>
+            <textarea id="modal-negative" class="modal-textarea" readonly rows="2"></textarea>
+          </div>
+
+          <div class="modal-section">
+            <div class="modal-section-title">生成参数与模型</div>
+            <div class="modal-kv-grid">
+              <div class="kv-item"><span class="k">模型 Checkpoint:</span> <span class="v" id="modal-ckpt">-</span></div>
+              <div class="kv-item"><span class="k">识别 LoRA:</span> <span class="v" id="modal-loras">-</span></div>
+              <div class="kv-item"><span class="k">元数据来源:</span> <span class="v" id="modal-source">-</span></div>
+            </div>
+            <pre id="modal-gen-params" class="modal-params-box"></pre>
+          </div>
+
+          <!-- 快捷操作区 -->
+          <div class="modal-bottom-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-modal-download-wf" onclick="downloadModalWorkflow()">
+              📥 下载工作流 JSON
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-modal-favorite" onclick="favoriteCurrentModalImage()">
+              ⭐ 收藏到提示词图库
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 更改目录弹窗 -->
+  <div id="folder-dialog" class="output-modal" style="display:none;" onclick="if(event.target===this)closeFolderDialog()">
+    <div class="output-folder-dialog-box">
+      <h3>更改生图输出目录</h3>
+      <p class="text-muted" style="font-size:13px;margin:6px 0 12px;">请输入 ComfyUI 或 WebUI 的 output 文件夹绝对路径：</p>
+      <input type="text" id="input-custom-folder" class="input" style="width:100%;margin-bottom:12px;" value="{{ configured_dir }}">
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" class="btn btn-secondary" onclick="closeFolderDialog()">取消</button>
+        <button type="button" class="btn btn-primary" onclick="saveCustomFolder()">确定并扫描</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var activeImages = {{ images | tojson }};
+  var currentImageIndex = -1;
+  var currentDetail = null;
+
+  window.openOutputDetail = function(id) {
+    var idx = -1;
+    for (var i = 0; i < activeImages.length; i++) {
+      if (activeImages[i].id === id) { idx = i; break; }
+    }
+    if (idx === -1) return;
+    currentImageIndex = idx;
+    loadModalImage(activeImages[idx].id);
+  };
+
+  function loadModalImage(id) {
+    var modal = document.getElementById('output-modal');
+    modal.style.display = 'flex';
+    document.getElementById('modal-image-counter').textContent = (currentImageIndex + 1) + ' / ' + activeImages.length;
+
+    fetch('/api/outputs/detail?id=' + encodeURIComponent(id))
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        currentDetail = data;
+        var imgUrl = '/outputs/file?path=' + encodeURIComponent(data.rel_path);
+        var modalImg = document.getElementById('modal-img');
+        modalImg.src = imgUrl;
+
+        document.getElementById('modal-filename').textContent = data.filename;
+        document.getElementById('modal-date-time').textContent = '📅 ' + data.file_date + ' ' + (data.file_time || '');
+        document.getElementById('modal-resolution').textContent = (data.width && data.height) ? (data.width + '×' + data.height) : '分辨率未知';
+        var sizeKb = Math.round((data.file_size || 0) / 1024);
+        document.getElementById('modal-filesize').textContent = sizeKb > 1024 ? ((sizeKb / 1024).toFixed(1) + ' MB') : (sizeKb + ' KB');
+
+        document.getElementById('modal-prompt').value = data.positive_prompt || '';
+        document.getElementById('modal-negative').value = data.negative_prompt || '';
+        var negSection = document.getElementById('modal-neg-section');
+        negSection.style.display = data.negative_prompt ? 'block' : 'none';
+
+        document.getElementById('modal-ckpt').textContent = data.checkpoint || '未检测到 Checkpoint';
+        document.getElementById('modal-loras').textContent = data.loras || '无 LoRA';
+        document.getElementById('modal-source').textContent = data.metadata_source || 'Auto';
+
+        var paramsBox = document.getElementById('modal-gen-params');
+        if (data.generation_params) {
+          paramsBox.textContent = data.generation_params;
+          paramsBox.style.display = 'block';
+        } else if (data.parameters) {
+          paramsBox.textContent = data.parameters;
+          paramsBox.style.display = 'block';
+        } else {
+          paramsBox.style.display = 'none';
+        }
+
+        var btnWf = document.getElementById('btn-modal-download-wf');
+        btnWf.style.display = (data.workflow_json || data.prompt_json) ? 'inline-block' : 'none';
+      })
+      .catch(function(err) {
+        if (window.showToast) window.showToast('加载图片详情失败', 'error');
+      });
+  }
+
+  window.closeOutputModal = function() {
+    document.getElementById('output-modal').style.display = 'none';
+    currentDetail = null;
+  };
+
+  window.navigateModalImage = function(delta) {
+    if (!activeImages.length) return;
+    var nextIdx = currentImageIndex + delta;
+    if (nextIdx < 0) nextIdx = activeImages.length - 1;
+    if (nextIdx >= activeImages.length) nextIdx = 0;
+    currentImageIndex = nextIdx;
+    loadModalImage(activeImages[currentImageIndex].id);
+  };
+
+  // 键盘左右箭头切换图片，Escape 关闭
+  window.addEventListener('keydown', function(e) {
+    var modal = document.getElementById('output-modal');
+    if (modal && modal.style.display !== 'none') {
+      if (e.key === 'ArrowLeft') {
+        window.navigateModalImage(-1);
+      } else if (e.key === 'ArrowRight') {
+        window.navigateModalImage(1);
+      } else if (e.key === 'Escape') {
+        window.closeOutputModal();
+      }
+    }
+  });
+
+  window.copyModalPrompt = function() {
+    var text = document.getElementById('modal-prompt').value;
+    if (!text) {
+      if (window.showToast) window.showToast('没有可复制的提示词', 'info');
+      return;
+    }
+    navigator.clipboard.writeText(text).then(function() {
+      if (window.showToast) window.showToast('提示词已复制到剪贴板', 'success');
+    });
+  };
+
+  window.copyModalNegative = function() {
+    var text = document.getElementById('modal-negative').value;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(function() {
+      if (window.showToast) window.showToast('负面提示词已复制到剪贴板', 'success');
+    });
+  };
+
+  window.appendModalPrompt = function() {
+    var text = document.getElementById('modal-prompt').value;
+    if (!text) {
+      if (window.showToast) window.showToast('没有提示词内容', 'info');
+      return;
+    }
+    if (window.appendTagsToWorkbench) {
+      window.appendTagsToWorkbench(text);
+    } else {
+      navigator.clipboard.writeText(text);
+      if (window.showToast) window.showToast('提示词已复制', 'success');
+    }
+  };
+
+  window.copyOutputPrompt = function(id) {
+    for (var i = 0; i < activeImages.length; i++) {
+      if (activeImages[i].id === id) {
+        var text = activeImages[i].positive_prompt;
+        if (!text) {
+          if (window.showToast) window.showToast('该图片无提示词', 'info');
+          return;
+        }
+        navigator.clipboard.writeText(text).then(function() {
+          if (window.showToast) window.showToast('提示词已复制', 'success');
+        });
+        return;
+      }
+    }
+  };
+
+  window.appendOutputPrompt = function(id) {
+    for (var i = 0; i < activeImages.length; i++) {
+      if (activeImages[i].id === id) {
+        var text = activeImages[i].positive_prompt;
+        if (window.appendTagsToWorkbench) {
+          window.appendTagsToWorkbench(text);
+        } else if (text) {
+          navigator.clipboard.writeText(text);
+          if (window.showToast) window.showToast('已复制到剪贴板', 'success');
+        }
+        return;
+      }
+    }
+  };
+
+  window.favoriteOutputImage = function(relPath) {
+    fetch('/api/outputs/favorite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rel_path: relPath, category: '生图精选' })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        if (window.showToast) window.showToast('已收藏至提示词图库「' + data.category + '」文件夹！', 'success');
+      } else {
+        if (window.showToast) window.showToast('收藏失败：' + (data.error || '未知错误'), 'error');
+      }
+    })
+    .catch(function(err) {
+      if (window.showToast) window.showToast('收藏网络请求失败', 'error');
+    });
+  };
+
+  window.favoriteCurrentModalImage = function() {
+    if (!currentDetail || !currentDetail.rel_path) return;
+    window.favoriteOutputImage(currentDetail.rel_path);
+  };
+
+  window.downloadModalWorkflow = function() {
+    if (!currentDetail) return;
+    var wfContent = currentDetail.workflow_json || currentDetail.prompt_json;
+    if (!wfContent) {
+      if (window.showToast) window.showToast('该图片未包含工作流数据', 'info');
+      return;
+    }
+    var blob = new Blob([wfContent], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = (currentDetail.filename.replace(/\.[^.]+$/, '')) + '_workflow.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    if (window.showToast) window.showToast('工作流 JSON 已下载', 'success');
+  };
+
+  // 复制某天全部 Prompt
+  document.querySelectorAll('.btn-copy-date-prompts').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var dateStr = this.getAttribute('data-date');
+      var prompts = [];
+      activeImages.forEach(function(img) {
+        if (img.file_date === dateStr && img.positive_prompt) {
+          prompts.push(img.positive_prompt);
+        }
+      });
+      if (!prompts.length) {
+        if (window.showToast) window.showToast('本日没有提取到有效提示词', 'info');
+        return;
+      }
+      var combined = prompts.join('\n\n---\n\n');
+      navigator.clipboard.writeText(combined).then(function() {
+        if (window.showToast) window.showToast('已复制本日 ' + prompts.length + ' 条 Prompt！', 'success');
+      });
+    });
+  });
+
+  // 刷新扫描
+  window.rescanOutputs = function() {
+    var btn = document.getElementById('btn-rescan');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ 正在扫描...';
+    }
+    fetch('/api/outputs/scan', { method: 'POST' })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          if (window.showToast) window.showToast('扫描完成！新增入库 ' + data.result.ingested + ' 张图片', 'success');
+          setTimeout(function() { location.reload(); }, 600);
+        } else {
+          if (window.showToast) window.showToast('扫描失败：' + (data.error || ''), 'error');
+          if (btn) { btn.disabled = false; btn.innerHTML = '🔄 刷新扫描'; }
+        }
+      })
+      .catch(function() {
+        if (window.showToast) window.showToast('网络错误，请稍后重试', 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = '🔄 刷新扫描'; }
+      });
+  };
+
+  var rescanBtn = document.getElementById('btn-rescan');
+  if (rescanBtn) rescanBtn.addEventListener('click', window.rescanOutputs);
+
+  // 更改目录弹窗
+  window.openFolderDialog = function() {
+    document.getElementById('folder-dialog').style.display = 'flex';
+  };
+  window.closeFolderDialog = function() {
+    document.getElementById('folder-dialog').style.display = 'none';
+  };
+  window.saveCustomFolder = function() {
+    var folder = document.getElementById('input-custom-folder').value.trim();
+    if (!folder) {
+      if (window.showToast) window.showToast('目录路径不能为空', 'error');
+      return;
+    }
+    fetch('/api/outputs/set-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder: folder })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.ok) {
+        if (window.showToast) window.showToast('目录已更新并扫描！', 'success');
+        setTimeout(function() { location.href = '/outputs'; }, 600);
+      } else {
+        if (window.showToast) window.showToast('保存失败：' + (data.error || ''), 'error');
+      }
+    })
+    .catch(function() {
+      if (window.showToast) window.showToast('请求失败', 'error');
+    });
+  };
+
+  var changeFolderBtn = document.getElementById('btn-change-folder');
+  if (changeFolderBtn) changeFolderBtn.addEventListener('click', window.openFolderDialog);
+
+})();
+</script>
+{% endblock %}

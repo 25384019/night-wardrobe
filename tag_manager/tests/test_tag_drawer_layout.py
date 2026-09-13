@@ -105,7 +105,7 @@ class TagDrawerTemplateContractTests(unittest.TestCase):
     def test版本面(self) -> None:
         base_html = (Path(app_module.BASE_DIR) / "templates" / "base.html").read_text(encoding="utf-8")
         self.assertIn("v1.24.1", base_html)
-        self.assertIn("style.css?v=85", base_html)
+        self.assertIn("style.css?v=88", base_html)
         self.assertEqual(app_module.app.version, "1.24.1")
 
 

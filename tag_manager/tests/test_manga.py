@@ -376,7 +376,7 @@ class MangaStaticContractTests(unittest.TestCase):
         self.assertIn('href="/manga"', base)
         self.assertIn("漫画下载", base)
         self.assertIn("v1.24.1", base)
-        self.assertIn("style.css?v=85", base)
+        self.assertIn("style.css?v=88", base)
         self.assertEqual("1.24.1", app_module.app.version)
 
     def test模板包含APNG联动与轮询脚本(self) -> None:

@@ -508,7 +508,7 @@ class WorkshopLlmSettingsContractTests(unittest.TestCase):
         self.assertNotIn('href="/llm"', self.base)
         self.assertNotIn("AI 设置", self.base)
         self.assertIn("v1.24.1", self.base)
-        self.assertIn("style.css?v=85", self.base)
+        self.assertIn("style.css?v=88", self.base)
 
     def test工坊header有设置按钮与dialog(self) -> None:
         self.assertIn('id="wsLlmSettingsBtn"', self.tpl)

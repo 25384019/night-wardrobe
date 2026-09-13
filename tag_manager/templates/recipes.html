@@ -18,10 +18,14 @@
   </nav>
   <form class="search-box" method="get">
     <input type="hidden" name="type" value="{{ type }}">
+    <input type="hidden" name="limit" value="{{ limit }}">
     <span class="search-icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
     </span>
     <input name="q" value="{{ q }}" placeholder="搜索配方名 / 提示词 / 备注">
+    {% if q %}
+    <a href="/recipes?type={{ type }}&amp;limit={{ limit }}" class="search-clear" aria-label="清空">×</a>
+    {% endif %}
     <button type="submit" class="search-go">搜索</button>
   </form>
 </div>
@@ -57,16 +61,28 @@
     </div>
     {% if row.positive_prompt %}
     <div class="recipe-field">
-      <label>Positive</label>
-      <div class="recipe-text">{{ row.positive_prompt[:200] }}{% if row.positive_prompt|length > 200 %}...{% endif %}</div>
-      <button class="btn-copy" onclick="copyRecipeField(this, {{ row.id }}, 'positive_prompt')">复制</button>
+      <div class="recipe-field-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+        <label style="margin-bottom:0;">Positive</label>
+        <button type="button" class="btn-copy" onclick="copyRecipeField(this, {{ row.id }}, 'positive_prompt')">复制</button>
+      </div>
+      {% if row.positive_prompt|length > 200 %}
+      <div class="recipe-text truncated" id="recipe-pos-{{ row.id }}">{{ row.positive_prompt[:200] }}... <button type="button" class="btn-text-toggle" onclick="toggleRecipeText('recipe-pos-{{ row.id }}', {{ row.id }}, 'positive_prompt')">展开</button></div>
+      {% else %}
+      <div class="recipe-text">{{ row.positive_prompt }}</div>
+      {% endif %}
     </div>
     {% endif %}
     {% if row.negative_prompt %}
     <div class="recipe-field">
-      <label>Negative</label>
-      <div class="recipe-text negative">{{ row.negative_prompt[:150] }}{% if row.negative_prompt|length > 150 %}...{% endif %}</div>
-      <button class="btn-copy" onclick="copyRecipeField(this, {{ row.id }}, 'negative_prompt')">复制</button>
+      <div class="recipe-field-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+        <label style="margin-bottom:0;">Negative</label>
+        <button type="button" class="btn-copy" onclick="copyRecipeField(this, {{ row.id }}, 'negative_prompt')">复制</button>
+      </div>
+      {% if row.negative_prompt|length > 150 %}
+      <div class="recipe-text negative truncated" id="recipe-neg-{{ row.id }}">{{ row.negative_prompt[:150] }}... <button type="button" class="btn-text-toggle" onclick="toggleRecipeText('recipe-neg-{{ row.id }}', {{ row.id }}, 'negative_prompt')">展开</button></div>
+      {% else %}
+      <div class="recipe-text negative">{{ row.negative_prompt }}</div>
+      {% endif %}
     </div>
     {% endif %}
     {% if row.params_json %}
@@ -79,17 +95,57 @@
     <p class="recipe-notes">{{ row.notes }}</p>
     {% endif %}
     <div class="recipe-actions">
-      <button class="btn-sm" onclick="editRecipe({{ row.id }})">编辑</button>
+      <button type="button" class="btn-sm btn-workbench-add" onclick="sendRecipeToWorkbench({{ row.id }})" title="将此配方正向提示词填入工作台">+ 载入工作台</button>
+      <button type="button" class="btn-sm" onclick="editRecipe({{ row.id }})">编辑</button>
       <form method="post" action="/recipes/{{ row.id }}/delete" style="display:inline" onsubmit="return confirm('确认删除？')">
-        <button class="btn-sm btn-danger">删除</button>
+        <button type="submit" class="btn-sm btn-danger">删除</button>
       </form>
     </div>
   </article>
 {% endfor %}
 {% if not rows %}
-  <p class="empty-hint">暂无配方，点击右上角「+ 新增配方」添加。</p>
+  <div class="tag-empty-state">
+    <div class="empty-icon">
+      <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"></circle><path d="M21 21l-4.35-4.35"></path></svg>
+    </div>
+    <h3>未找到匹配的配方</h3>
+    <p>{% if q %}没有找到与关键词「{{ q }}」匹配的配方，请尝试更换搜索词。{% else %}当前分类暂无配方，点击右上角「+ 新增配方」添加。{% endif %}</p>
+    {% if q %}<a class="btn-reset-filter" href="/recipes?type={{ type }}&amp;limit={{ limit }}">清空搜索条件</a>{% endif %}
+  </div>
 {% endif %}
 </div>
+
+{% set total_val = total|default(rows|length, true) %}
+{% set limit_val = limit|default(60, true) %}
+{% set offset_val = offset|default(0, true) %}
+{% set page_val = page|default(1, true) %}
+{% set total_pages = ((total_val + limit_val - 1) // limit_val) if total_val > 0 else 1 %}
+{% if total_val > limit_val %}
+<nav class="pagination" aria-label="配方分页">
+  {% if offset_val > 0 %}
+  <a class="btn-sm" href="/recipes?type={{ type }}&amp;q={{ q }}&amp;offset={{ [offset_val - limit_val, 0]|max }}&amp;limit={{ limit_val }}">上一页</a>
+  {% endif %}
+  <span class="pagination-info">第 {{ page_val }} 页 / 共 {{ total_pages }} 页 (共 {{ total_val }} 条)</span>
+  {% if offset_val + limit_val < total_val %}
+  <a class="btn-sm" href="/recipes?type={{ type }}&amp;q={{ q }}&amp;offset={{ offset_val + limit_val }}&amp;limit={{ limit_val }}">下一页</a>
+  {% endif %}
+  <form class="page-jump-form" onsubmit="jumpToRecipePage(event, '{{ type }}', '{{ q }}', {{ limit_val }}, {{ total_pages }})">
+    <span>跳至</span>
+    <input type="number" id="recipePageInput" min="1" max="{{ total_pages }}" value="{{ page_val }}">
+    <span>页</span>
+    <button type="submit" class="btn-sm">跳转</button>
+  </form>
+  <div class="page-size-selector">
+    <span>每页:</span>
+    <select onchange="location.href='/recipes?type={{ type }}&amp;q={{ q }}&amp;offset=0&amp;limit=' + this.value">
+      <option value="30" {% if limit_val == 30 %}selected{% endif %}>30</option>
+      <option value="60" {% if limit_val == 60 %}selected{% endif %}>60</option>
+      <option value="80" {% if limit_val == 80 %}selected{% endif %}>80</option>
+      <option value="120" {% if limit_val == 120 %}selected{% endif %}>120</option>
+    </select>
+  </div>
+</nav>
+{% endif %}
 
 <!-- 编辑悬浮窗 -->
 <div id="edit-panel" class="floating-panel" style="display:none">
@@ -129,10 +185,39 @@ var recipesData = {
 function copyRecipeField(btn, id, field) {
   const d = recipesData[id];
   if (!d) return;
-  navigator.clipboard.writeText(d[field] || '').then(() => {
+  const val = d[field] || '';
+  if (!val) {
+    if (window.showToast) window.showToast('该字段内容为空', 'info');
+    return;
+  }
+  const fieldName = field === 'positive_prompt' ? '正向提示词' : (field === 'negative_prompt' ? '负向提示词' : '内容');
+  navigator.clipboard.writeText(val).then(() => {
     btn.textContent = '已复制';
     setTimeout(() => btn.textContent = '复制', 1200);
+    if (window.showToast) window.showToast('已复制「' + d.name + '」' + fieldName, 'success');
+  }).catch(() => {
+    if (window.showToast) window.showToast('复制失败，请检查剪贴板权限', 'error');
   });
+}
+
+function toggleRecipeText(elId, id, field) {
+  const el = document.getElementById(elId);
+  const d = recipesData[id];
+  if (!el || !d) return;
+  const isTruncated = el.classList.contains('truncated');
+  const fullText = d[field] || '';
+  const limit = field === 'positive_prompt' ? 200 : 150;
+  if (isTruncated) {
+    el.classList.remove('truncated');
+    el.innerHTML = escapeRecipeHTML(fullText) + ' <button type="button" class="btn-text-toggle" onclick="toggleRecipeText(\'' + elId + '\', ' + id + ', \'' + field + '\')">收起</button>';
+  } else {
+    el.classList.add('truncated');
+    el.innerHTML = escapeRecipeHTML(fullText.slice(0, limit)) + '... <button type="button" class="btn-text-toggle" onclick="toggleRecipeText(\'' + elId + '\', ' + id + ', \'' + field + '\')">展开</button>';
+  }
+}
+
+function escapeRecipeHTML(str) {
+  return (str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
 function editRecipe(id) {
@@ -146,6 +231,32 @@ function editRecipe(id) {
   document.getElementById('edit-params').value = d.params_json;
   document.getElementById('edit-notes').value = d.notes;
   document.getElementById('edit-panel').style.display = 'flex';
+}
+
+function sendRecipeToWorkbench(id) {
+  var d = recipesData[id];
+  if (!d || !d.positive_prompt) {
+    if (window.showToast) window.showToast('该配方没有可用的正向提示词', 'info');
+    return;
+  }
+  if (window.appendTagsToWorkbench) {
+    window.appendTagsToWorkbench(d.positive_prompt, {label: d.name});
+  }
+}
+
+function jumpToRecipePage(e, type, q, limit, totalPages) {
+  e.preventDefault();
+  var input = document.getElementById('recipePageInput');
+  var targetPage = parseInt(input.value, 10);
+  if (isNaN(targetPage) || targetPage < 1) targetPage = 1;
+  if (targetPage > totalPages) targetPage = totalPages;
+  var newOffset = (targetPage - 1) * limit;
+  var params = new URLSearchParams();
+  if (type) params.set('type', type);
+  if (q) params.set('q', q);
+  params.set('offset', newOffset);
+  params.set('limit', limit);
+  location.href = '/recipes?' + params.toString();
 }
 
 // 悬浮窗拖拽

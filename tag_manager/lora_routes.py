@@ -23,6 +23,7 @@ from .db import (
     get_lora_card_by_name,
     list_lora_cards,
     update_lora_card_preview,
+    update_lora_card_triggers,
     upsert_lora_card,
 )
 from .lora_parser import (
@@ -49,6 +50,10 @@ class LoraParsePayload(BaseModel):
 class LoraCivitaiPayload(BaseModel):
     name: str
     civitai_text: str
+
+
+class LoraTriggerPayload(BaseModel):
+    trigger_words: str = ""
 
 
 def _error(message: str, status_code: int = 400) -> JSONResponse:
@@ -139,6 +144,14 @@ async def upload_lora_preview(card_id: int, file: UploadFile = File(...)):
         old.unlink()
     (LORA_PREVIEW_DIR / f"{card_id}{ext}").write_bytes(data)
     update_lora_card_preview(card_id, f"{card_id}{ext}")
+    return {"card": get_lora_card(card_id)}
+
+
+@router.patch("/api/loras/{card_id}/triggers")
+def update_lora_triggers(card_id: int, payload: LoraTriggerPayload):
+    if get_lora_card(card_id) is None:
+        return _error("LoRA 卡不存在", 404)
+    update_lora_card_triggers(card_id, payload.trigger_words)
     return {"card": get_lora_card(card_id)}
 
 
