@@ -2,7 +2,11 @@
 
 面向 Stable Diffusion / NoobAI 工作流的本地 Tag、角色卡、配方、图库与提示词工坊管理器。默认跑在本机，数据留在本机。
 
-当前版本：**v1.22.0**
+当前优化版：**v1.0.0**（基于上游 v1.24.1）
+
+## 项目来源
+
+本项目基于 [JadeCake5/night-wardrobe](https://github.com/JadeCake5/night-wardrobe) 继续优化，保留原项目的 MIT License 与作者版权声明。本仓库仅发布程序源码，不包含本地数据库、角色预览、LoRA 预览、图库、模型、密钥或其他个人数据。
 
 ## 功能亮点
 
@@ -39,7 +43,7 @@
 ### 安装与启动
 
 ```bash
-git clone https://github.com/JadeCake5/night-wardrobe.git
+git clone https://github.com/25384019/night-wardrobe.git
 cd night-wardrobe
 pip install -r tag_manager/requirements.txt
 python -m tag_manager.run
