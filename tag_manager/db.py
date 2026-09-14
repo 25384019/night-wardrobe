@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .default_prompts import DEFAULT_NEGATIVE_TEMPLATE, DEFAULT_POSITIVE_TEMPLATE, DEFAULT_SYSTEM_PROMPT
+from .style_units import build_style_unit
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BASE_DIR.parent
@@ -99,6 +100,12 @@ def init_db(db_path: Path | str | None = None) -> None:
                 metadata_json TEXT DEFAULT '',
                 metadata_source TEXT DEFAULT '',
                 generation_params TEXT DEFAULT '',
+                artist_tokens TEXT DEFAULT '',
+                character_tokens TEXT DEFAULT '',
+                other_tags TEXT DEFAULT '',
+                style_unit_json TEXT DEFAULT '',
+                original_prompt TEXT DEFAULT '',
+                composed_prompt TEXT DEFAULT '',
                 file_mtime REAL DEFAULT 0,
                 file_size INTEGER DEFAULT 0,
                 rating INTEGER DEFAULT 0,
@@ -284,6 +291,12 @@ def init_db(db_path: Path | str | None = None) -> None:
                 prompt_json TEXT DEFAULT '',
                 parameters TEXT DEFAULT '',
                 generation_params TEXT DEFAULT '',
+                artist_tokens TEXT DEFAULT '',
+                character_tokens TEXT DEFAULT '',
+                other_tags TEXT DEFAULT '',
+                style_unit_json TEXT DEFAULT '',
+                original_prompt TEXT DEFAULT '',
+                composed_prompt TEXT DEFAULT '',
                 metadata_source TEXT DEFAULT '',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -432,6 +445,12 @@ def ensure_output_images_columns(conn: sqlite3.Connection) -> None:
         "safety_source": "TEXT DEFAULT ''",
         "prompt_version": "INTEGER NOT NULL DEFAULT 1",
         "age_status": "TEXT NOT NULL DEFAULT 'unknown'",
+        "artist_tokens": "TEXT DEFAULT ''",
+        "character_tokens": "TEXT DEFAULT ''",
+        "other_tags": "TEXT DEFAULT ''",
+        "style_unit_json": "TEXT DEFAULT ''",
+        "original_prompt": "TEXT DEFAULT ''",
+        "composed_prompt": "TEXT DEFAULT ''",
     }
     for name, definition in columns.items():
         if name not in existing:
@@ -444,6 +463,12 @@ def ensure_gallery_image_columns(conn: sqlite3.Connection) -> None:
         "metadata_json": "TEXT DEFAULT ''",
         "metadata_source": "TEXT DEFAULT ''",
         "generation_params": "TEXT DEFAULT ''",
+        "artist_tokens": "TEXT DEFAULT ''",
+        "character_tokens": "TEXT DEFAULT ''",
+        "other_tags": "TEXT DEFAULT ''",
+        "style_unit_json": "TEXT DEFAULT ''",
+        "original_prompt": "TEXT DEFAULT ''",
+        "composed_prompt": "TEXT DEFAULT ''",
         "file_mtime": "REAL DEFAULT 0",
         "file_size": "INTEGER DEFAULT 0",
     }
@@ -624,19 +649,31 @@ def list_lora_cards(connect_factory=connect) -> list[dict]:
         rows = conn.execute(
             "SELECT * FROM lora_cards ORDER BY updated_at DESC, id DESC"
         ).fetchall()
-    return [dict(row) for row in rows]
+    return [_decorate_lora_card(dict(row)) for row in rows]
 
 
 def get_lora_card(card_id: int, connect_factory=connect) -> dict | None:
     with connect_factory() as conn:
         row = conn.execute("SELECT * FROM lora_cards WHERE id=?", (card_id,)).fetchone()
-    return dict(row) if row else None
+    return _decorate_lora_card(dict(row)) if row else None
 
 
 def get_lora_card_by_name(name: str, connect_factory=connect) -> dict | None:
     with connect_factory() as conn:
         row = conn.execute("SELECT * FROM lora_cards WHERE name=?", (name,)).fetchone()
-    return dict(row) if row else None
+    return _decorate_lora_card(dict(row)) if row else None
+
+
+def _decorate_lora_card(card: dict) -> dict:
+    triggers = [item.strip() for item in str(card.get("trigger_words", "")).split(",") if item.strip()]
+    reference = str(card.get("filename") or card.get("name") or "")
+    card["style_unit"] = build_style_unit(
+        trigger_tokens=triggers,
+        lora_refs=[reference] if reference else [],
+        weight=card.get("suggested_weight"),
+        source="lora_library",
+    )
+    return card
 
 
 def update_lora_card_preview(card_id: int, preview_image: str, connect_factory=connect) -> None:

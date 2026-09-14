@@ -11,6 +11,7 @@ from typing import Any
 from PIL import Image
 
 from .db import BASE_DIR, PROJECT_DIR, connect, init_db
+from .style_units import structure_prompt, style_unit_json
 
 GALLERY_DIR = BASE_DIR / "gallery"
 OLD_GALLERY_DIR = PROJECT_DIR / "提示词图库"
@@ -483,10 +484,41 @@ def extract_prompts(meta: dict[str, str]) -> tuple[str, str, str, str, str, str,
     return positive, negative, workflow_raw, prompt_raw, checkpoint, unique_join(loras), parameters, metadata_json, metadata_source, generation_params
 
 
+def extract_structured_prompt(meta: dict[str, str]) -> dict[str, object]:
+    """Return additive Style/Character/Other buckets without changing legacy extraction."""
+    positive, negative, workflow_raw, prompt_raw, checkpoint, loras, parameters, metadata_json, metadata_source, generation_params = extract_prompts(meta)
+    def values(key: str) -> list[str]:
+        raw = meta.get(key, "")
+        parsed = parse_json(raw)
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed]
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    result = structure_prompt(
+        positive,
+        artist_tokens=values("artist_tokens"),
+        trigger_tokens=values("trigger_tokens"),
+        character_tokens=values("character_tokens"),
+        lora_refs=values("lora_refs"),
+    )
+    result.update({
+        "negative_prompt": negative,
+        "checkpoint": checkpoint,
+        "loras": loras,
+        "workflow": workflow_raw,
+        "prompt": prompt_raw,
+        "parameters": parameters,
+        "metadata_json": metadata_json,
+        "metadata_source": metadata_source,
+        "generation_params": generation_params,
+        "style_unit_json": style_unit_json(result["style_unit"]),
+    })
+    return result
+
+
 _UPSERT_SQL = """
     INSERT INTO gallery_images
-        (path, title, category, positive_prompt, negative_prompt, workflow_json, prompt_json, parameters, checkpoint, loras, metadata_json, metadata_source, generation_params, file_mtime, file_size)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (path, title, category, positive_prompt, negative_prompt, workflow_json, prompt_json, parameters, checkpoint, loras, metadata_json, metadata_source, generation_params, file_mtime, file_size, artist_tokens, character_tokens, other_tags, style_unit_json, original_prompt, composed_prompt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(path) DO UPDATE SET
         title=excluded.title,
         category=excluded.category,
@@ -500,6 +532,12 @@ _UPSERT_SQL = """
         metadata_json=excluded.metadata_json,
         metadata_source=excluded.metadata_source,
         generation_params=excluded.generation_params,
+        artist_tokens=excluded.artist_tokens,
+        character_tokens=excluded.character_tokens,
+        other_tags=excluded.other_tags,
+        style_unit_json=excluded.style_unit_json,
+        original_prompt=excluded.original_prompt,
+        composed_prompt=excluded.composed_prompt,
         file_mtime=excluded.file_mtime,
         file_size=excluded.file_size,
         updated_at=CURRENT_TIMESTAMP
@@ -511,11 +549,22 @@ def ingest_image(conn, path: Path, root: Path = GALLERY_DIR) -> None:
     rel = path.relative_to(GALLERY_DIR).as_posix()
     stat = path.stat()
     meta = read_image_metadata(path)
-    positive, negative, workflow_raw, prompt_raw, checkpoint, loras, parameters, metadata_json, metadata_source, generation_params = extract_prompts(meta)
+    structured = extract_structured_prompt(meta)
+    positive = structured["original_prompt"]
+    negative = structured["negative_prompt"]
+    workflow_raw = structured["workflow"]
+    prompt_raw = structured["prompt"]
+    checkpoint = structured["checkpoint"]
+    loras = structured["loras"]
+    parameters = structured["parameters"]
+    metadata_json = structured["metadata_json"]
+    metadata_source = structured["metadata_source"]
+    generation_params = structured["generation_params"]
     category = path.parent.name if path.parent != root else ""
     conn.execute(
         _UPSERT_SQL,
-        (rel, path.stem, category, positive, negative, workflow_raw, prompt_raw, parameters, checkpoint, loras, metadata_json, metadata_source, generation_params, stat.st_mtime, stat.st_size),
+        (rel, path.stem, category, positive, negative, workflow_raw, prompt_raw, parameters, checkpoint, loras, metadata_json, metadata_source, generation_params, stat.st_mtime, stat.st_size,
+         ", ".join(structured["artist_tokens"]), ", ".join(structured["character_tokens"]), ", ".join(structured["other_tags"]), structured["style_unit_json"], structured["original_prompt"], structured["composed_prompt"]),
     )
 
 

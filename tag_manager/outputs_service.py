@@ -14,7 +14,7 @@ from typing import Any
 from PIL import Image
 
 from .db import BASE_DIR, connect, init_db
-from .gallery import GALLERY_DIR, IMAGE_EXTENSIONS, extract_prompts, ingest_saved_paths, read_image_metadata, safe_gallery_relative_path
+from .gallery import GALLERY_DIR, IMAGE_EXTENSIONS, extract_prompts, extract_structured_prompt, ingest_saved_paths, read_image_metadata, safe_gallery_relative_path
 
 _SCAN_LOCK = threading.Lock()
 _COMFY_PYTHON = BASE_DIR.parents[2] / "python" / "python.exe"
@@ -174,6 +174,7 @@ def ingest_output_image(conn, path: Path, root: Path) -> None:
 
     # 读取元数据
     meta = read_image_metadata(path)
+    structured = extract_structured_prompt(meta)
     positive, negative, workflow_raw, prompt_raw, checkpoint, loras, parameters, metadata_json, metadata_source, generation_params = extract_prompts(meta)
 
     cur = conn.execute(
@@ -183,8 +184,8 @@ def ingest_output_image(conn, path: Path, root: Path) -> None:
              positive_prompt, negative_prompt, original_positive_prompt, original_negative_prompt,
              prompt_version,
              checkpoint, loras, workflow_json, prompt_json,
-             parameters, generation_params, metadata_source, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+             parameters, generation_params, artist_tokens, character_tokens, other_tags, style_unit_json, original_prompt, composed_prompt, metadata_source, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(rel_path) DO UPDATE SET
             filename=excluded.filename,
             file_date=excluded.file_date,
@@ -203,6 +204,11 @@ def ingest_output_image(conn, path: Path, root: Path) -> None:
             prompt_json=excluded.prompt_json,
             parameters=excluded.parameters,
             generation_params=excluded.generation_params,
+            artist_tokens=excluded.artist_tokens,
+            character_tokens=excluded.character_tokens,
+            other_tags=excluded.other_tags,
+            style_unit_json=excluded.style_unit_json,
+            composed_prompt=excluded.composed_prompt,
             metadata_source=excluded.metadata_source,
             updated_at=CURRENT_TIMESTAMP
         """,
@@ -219,12 +225,19 @@ def ingest_output_image(conn, path: Path, root: Path) -> None:
             negative,
             positive,
             negative,
+            0,
             checkpoint,
             loras,
             workflow_raw,
             prompt_raw,
             parameters,
             generation_params,
+            ", ".join(structured["artist_tokens"]),
+            ", ".join(structured["character_tokens"]),
+            ", ".join(structured["other_tags"]),
+            structured["style_unit_json"],
+            structured["original_prompt"],
+            structured["composed_prompt"],
             metadata_source,
         ),
     )
@@ -568,6 +581,7 @@ def reparse_new_outputs(output_dir: Path | None = None) -> dict[str, Any]:
                     continue
 
                 meta = read_image_metadata(full_path)
+                structured = extract_structured_prompt(meta)
                 positive, negative, workflow_raw, prompt_raw, checkpoint, loras, parameters, metadata_json, metadata_source, generation_params = extract_prompts(meta)
 
                 conn.execute(
@@ -579,10 +593,19 @@ def reparse_new_outputs(output_dir: Path | None = None) -> dict[str, Any]:
                         loras = ?,
                         parameters = ?,
                         generation_params = ?,
+                        artist_tokens = ?,
+                        character_tokens = ?,
+                        other_tags = ?,
+                        style_unit_json = ?,
+                        original_prompt = ?,
+                        composed_prompt = ?,
                         metadata_source = ?
                     WHERE id = ?
                     """,
-                    (positive, negative, checkpoint, loras, parameters, generation_params, metadata_source, image_id),
+                    (positive, negative, checkpoint, loras, parameters, generation_params,
+                     ", ".join(structured["artist_tokens"]), ", ".join(structured["character_tokens"]),
+                     ", ".join(structured["other_tags"]), structured["style_unit_json"],
+                     structured["original_prompt"], structured["composed_prompt"], metadata_source, image_id),
                 )
                 updated_count += 1
 
