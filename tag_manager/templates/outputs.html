@@ -324,6 +324,22 @@
             </summary>
             <div class="lineage-neg-box" id="inspector-neg-text">（无负向词）</div>
           </details>
+          <div class="inspector-tag-copies">
+            <div class="inspector-tag-copy-row">
+              <span class="inspector-tag-copy-label">LoRA 标签</span>
+              <span class="inspector-tag-copy-value" id="inspector-lora-style-tags">-</span>
+            </div>
+            <div class="inspector-tag-copy-row">
+              <span class="inspector-tag-copy-label">图片标签</span>
+              <span class="inspector-tag-copy-value" id="inspector-image-tags">-</span>
+              <button type="button" class="inspector-tag-copy-button" onclick="copyInspectorTags('image')">复制</button>
+            </div>
+            <div class="inspector-tag-copy-row">
+              <span class="inspector-tag-copy-label">角色标签</span>
+              <span class="inspector-tag-copy-value" id="inspector-character-tags">-</span>
+              <button type="button" class="inspector-tag-copy-button" onclick="copyInspectorTags('character')">复制</button>
+            </div>
+          </div>
         </div>
 
         <!-- STRICT USER SPECIFICATION #4: Generation Pipeline Specs -->
@@ -966,6 +982,10 @@
     if (prompt) prompt.textContent = '未选择图片';
     var negative = document.getElementById('inspector-neg-text');
     if (negative) negative.textContent = '（无负向词）';
+    ['inspector-lora-style-tags', 'inspector-image-tags', 'inspector-character-tags'].forEach(function(id) {
+      var element = document.getElementById(id);
+      if (element) { element.textContent = '-'; element.title = ''; }
+    });
     setInspectorActionsEnabled(false);
   }
 
@@ -1073,6 +1093,12 @@
     if (triggerWords) { triggerWords.textContent = data.trigger_words || '无'; triggerWords.title = data.trigger_words || ''; }
     if (artistTokens) { artistTokens.textContent = data.artist_tokens || '无'; artistTokens.title = data.artist_tokens || ''; }
 
+    ['lora-style-tags', 'image-tags', 'character-tags'].forEach(function(name) {
+      var element = document.getElementById('inspector-' + name);
+      var field = name.replace(/-/g, '_');
+      if (element) { element.textContent = data[field] || '无'; element.title = data[field] || ''; }
+    });
+
     // Parse generation params for Sampler, Steps, CFG, Seed
     var rawParams = data.generation_params || data.parameters || '';
     parseGenerationSpecs(rawParams);
@@ -1086,6 +1112,15 @@
     var rating = document.getElementById('inspector-safety-select');
     if (rating) rating.value = data.safety_level || 'normal';
   }
+
+  window.copyInspectorTags = function(kind) {
+    var id = kind === 'character' ? 'inspector-character-tags' : 'inspector-image-tags';
+    var text = document.getElementById(id).textContent;
+    if (!text || text === '无' || text === '-') return;
+    navigator.clipboard.writeText(text).then(function() {
+      if (window.showToast) window.showToast(kind === 'character' ? '角色标签已复制' : '图片标签已复制', 'success');
+    });
+  };
 
   window.saveInspectorSafetyLevel = function() {
     if (!selectedImageId || !isVisibleImage(selectedImageId)) return;

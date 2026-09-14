@@ -115,6 +115,31 @@ class TestOutputsFeature(unittest.TestCase):
         self.assertEqual(detail["safety_level"], "nsfw")
         self.assertEqual(detail["safety_source"], "手动")
 
+    def test_output_detail_uses_lora_library_for_copyable_tags(self):
+        with connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO lora_cards (name, filename, trigger_words)
+                VALUES (?, ?, ?)
+                """,
+                ("星绘画风，触发词@stella", "stella_style.safetensors", "stella, stella style"),
+            )
+            conn.execute(
+                """
+                INSERT INTO output_images (rel_path, filename, file_date, positive_prompt, loras)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                ("lora_tags.png", "lora_tags.png", "2026-09-14", "stella, stella style, 1girl, blue eyes", "stella_style.safetensors:1.0"),
+            )
+            image_id = conn.execute("SELECT id FROM output_images WHERE rel_path = 'lora_tags.png'").fetchone()[0]
+
+        detail = get_output_image_detail(image_id=image_id)
+        self.assertEqual(detail["lora_trigger_words"], "stella, stella style")
+        self.assertEqual(detail["lora_artist_strings"], "星绘画风，触发词@stella")
+        self.assertEqual(detail["lora_style_tags"], "星绘画风，触发词@stella, stella, stella style")
+        self.assertEqual(detail["image_tags"], "stella, stella style, 1girl, blue eyes")
+        self.assertEqual(detail["character_tags"], "1girl, blue eyes")
+
     def test_prompt_safety_uses_positive_prompt_only(self):
         self.assertEqual(classify_prompt_safety("1girl, school uniform, smile"), "normal")
         self.assertEqual(classify_prompt_safety("1girl, bikini, beach"), "suspicious")
@@ -203,6 +228,12 @@ class TestOutputsFeature(unittest.TestCase):
     def test_output_card_hides_timestamp_from_card_face(self):
         template = (Path(__file__).parents[1] / "templates" / "outputs.html").read_text(encoding="utf-8")
         self.assertNotIn('<span class="card-timestamp output-time-badge">', template)
+
+    def test_inspector_has_separate_copyable_image_and_character_tags(self):
+        template = (Path(__file__).parents[1] / "templates" / "outputs.html").read_text(encoding="utf-8")
+        self.assertIn('id="inspector-image-tags"', template)
+        self.assertIn('id="inspector-character-tags"', template)
+        self.assertIn("copyInspectorTags", template)
 
     def test_fill_workbench_opens_workbench_after_staging_prompt(self):
         template = (Path(__file__).parents[1] / "templates" / "outputs.html").read_text(encoding="utf-8")

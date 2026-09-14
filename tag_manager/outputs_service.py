@@ -418,8 +418,59 @@ def get_output_image_detail(image_id: int | None = None, rel_path: str | None = 
         if not row:
             return None
         detail = dict(row)
+        _attach_lora_library_tags(conn, detail)
         detail["safety_level"] = detail.get("safety_level") or classify_prompt_safety(detail.get("positive_prompt", ""))
         return detail
+
+
+def _lora_key(value: str) -> str:
+    clean = str(value or "").strip().casefold()
+    clean = re.sub(r"^<lora:", "", clean)
+    clean = re.sub(r":-?\d+(?:\.\d+)?>?$", "", clean)
+    clean = re.sub(r"\.safetensors$", "", clean)
+    return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", clean)
+
+
+def _comma_tokens(value: str) -> list[str]:
+    return [token.strip() for token in str(value or "").split(",") if token.strip()]
+
+
+def _unique_tokens(values: list[str]) -> list[str]:
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        key = value.casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(value)
+    return unique
+
+
+def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
+    lora_keys = {_lora_key(value) for value in _comma_tokens(detail.get("loras", ""))}
+    lora_keys.discard("")
+    matched: list[dict[str, str]] = []
+    if lora_keys:
+        rows = conn.execute("SELECT name, filename, trigger_words FROM lora_cards").fetchall()
+        for row in rows:
+            card = dict(row)
+            card_keys = {_lora_key(card.get("name", "")), _lora_key(card.get("filename", ""))}
+            card_keys.discard("")
+            if lora_keys.intersection(card_keys):
+                matched.append(card)
+
+    triggers = _unique_tokens([token for card in matched for token in _comma_tokens(card.get("trigger_words", ""))])
+    artist_strings = _unique_tokens([str(card.get("name", "")).strip() for card in matched if str(card.get("name", "")).strip()])
+    image_tokens = _comma_tokens(detail.get("positive_prompt", ""))
+    trigger_keys = {token.casefold() for token in triggers}
+    character_tokens = [token for token in image_tokens if token.casefold() not in trigger_keys]
+
+    detail["matched_loras"] = matched
+    detail["lora_trigger_words"] = ", ".join(triggers)
+    detail["lora_artist_strings"] = "；".join(artist_strings)
+    detail["lora_style_tags"] = ", ".join([*artist_strings, *triggers])
+    detail["image_tags"] = ", ".join(image_tokens)
+    detail["character_tags"] = ", ".join(character_tokens)
 
 
 def set_output_safety_level(image_id: int, level: str) -> dict[str, Any] | None:
