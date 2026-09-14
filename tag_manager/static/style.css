@@ -970,6 +970,8 @@ a.gallery-breadcrumb-item:hover, a.gallery-breadcrumb-item:focus-visible { color
   max-width: min(92vw, 1100px);
   max-height: calc(100vh - 32px);
   overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .lora-image-dialog img {
@@ -977,13 +979,33 @@ a.gallery-breadcrumb-item:hover, a.gallery-breadcrumb-item:focus-visible { color
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: calc(100vh - 48px);
+  max-height: calc(100vh - 96px);
   object-fit: contain;
+}
+
+.lora-image-dialog-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px;
+  background: rgba(15, 23, 42, .94);
+}
+
+.lora-image-dialog .lora-image-dialog-close {
+  position: static;
+  width: auto;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: #334155;
+  border-color: #94a3b8;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 @media (max-width: 640px) {
   .lora-image-dialog { width: calc(100vw - 24px); max-width: calc(100vw - 24px); }
-  .lora-image-dialog img { max-height: calc(100vh - 40px); }
+  .lora-image-dialog img { max-height: calc(100vh - 88px); }
 }
 
 /* ─── 紧凑工具栏体系（v1.9.0） ─── */
@@ -3089,4 +3111,3 @@ input, select, textarea {
 
 .tag-empty-state h3 { color: #51414e; }
 .tag-empty-state p, .tag-loading-more { color: #887887; }
-

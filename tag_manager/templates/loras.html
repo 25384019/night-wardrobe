@@ -110,7 +110,9 @@
 </div>
 
 <dialog id="loraImageDialog" class="lora-image-dialog">
-  <button type="button" class="lora-image-dialog-close" onclick="document.getElementById('loraImageDialog').close()" aria-label="关闭预览">×</button>
+  <div class="lora-image-dialog-toolbar">
+    <button type="button" class="lora-image-dialog-close" onclick="document.getElementById('loraImageDialog').close()">关闭预览 ×</button>
+  </div>
   <img id="loraImageDialogImage" alt="完整预览图">
 </dialog>
 
