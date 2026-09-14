@@ -126,6 +126,7 @@
       {% if row.category %}<span class="gallery-badge">{{ row.category }}</span>{% endif %}
       {% if row.checkpoint %}<span class="gallery-badge model">{{ row.checkpoint }}</span>{% endif %}
       {% if row.loras %}<span class="gallery-badge lora">{{ row.loras[:40] }}</span>{% endif %}
+      {% if row.style_unit_json %}<span class="gallery-badge style-unit">风格单元</span>{% endif %}
     </div>
     <button type="button" class="folder-menu-toggle image-menu-toggle" data-image-menu-toggle aria-expanded="false" aria-label="管理图片：{{ row.title }}"></button>
     <div class="folder-card-menu is-icons" data-image-card-menu hidden>
@@ -207,6 +208,9 @@ var galleryData = {
     negative: {{ row.negative_prompt|tojson }},
     checkpoint: {{ row.checkpoint|tojson }},
     loras: {{ row.loras|tojson }},
+    artistTokens: {{ (row.artist_tokens or '')|tojson }},
+    characterTokens: {{ (row.character_tokens or '')|tojson }},
+    otherTags: {{ (row.other_tags or '')|tojson }},
     parameters: {{ (row.generation_params or row.parameters)|tojson }},
     metadata: {{ row.metadata_json|tojson }},
     metadataSource: {{ row.metadata_source|tojson }}
@@ -223,6 +227,12 @@ function openLightbox(id) {
   document.getElementById('lb-negative').textContent = d.negative;
   document.getElementById('lb-checkpoint').textContent = d.checkpoint ? '模型: ' + d.checkpoint : '';
   document.getElementById('lb-loras').textContent = d.loras ? 'LoRA: ' + d.loras : '';
+  const buckets = [
+    d.artistTokens && '风格：' + d.artistTokens,
+    d.characterTokens && '角色：' + d.characterTokens,
+    d.otherTags && '其他：' + d.otherTags,
+  ].filter(Boolean);
+  document.getElementById('lb-loras').textContent += buckets.length ? '\n' + buckets.join('\n') : '';
   document.getElementById('lb-source').textContent = d.metadataSource ? '来源: ' + d.metadataSource : '';
   document.getElementById('lb-params').textContent = d.parameters || '无';
   document.getElementById('lb-metadata').textContent = d.metadata || '无';

@@ -313,3 +313,8 @@
 .image-card:hover .image-card-thumb img {
   transform: scale(1.02);
 }
+.gallery-badge.style-unit {
+  color: #7d58b5;
+  border-color: rgba(125, 88, 181, 0.28);
+  background: rgba(125, 88, 181, 0.08);
+}
