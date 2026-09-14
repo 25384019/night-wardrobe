@@ -963,6 +963,29 @@ a.gallery-breadcrumb-item:hover, a.gallery-breadcrumb-item:focus-visible { color
 .lora-image-dialog-close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; background: rgba(15,23,42,.8); border: 1px solid var(--line); color: #fff; font-size: 20px; line-height: 1; display: grid; place-items: center; cursor: pointer; z-index: 10; }
 .lora-image-dialog-close:hover { background: rgba(76,29,149,.8); border-color: var(--line-hot); }
 
+/* LoRA 预览必须在视口内完整显示，避免竖图撑破弹窗或被浏览器裁切。 */
+.lora-image-dialog {
+  box-sizing: border-box;
+  width: min(92vw, 1100px);
+  max-width: min(92vw, 1100px);
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+}
+
+.lora-image-dialog img {
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 48px);
+  object-fit: contain;
+}
+
+@media (max-width: 640px) {
+  .lora-image-dialog { width: calc(100vw - 24px); max-width: calc(100vw - 24px); }
+  .lora-image-dialog img { max-height: calc(100vh - 40px); }
+}
+
 /* ─── 紧凑工具栏体系（v1.9.0） ─── */
 /* 页面标题行：标题居左、说明居中、操作按钮靠右一行 */
 .page-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -3066,5 +3089,4 @@ input, select, textarea {
 
 .tag-empty-state h3 { color: #51414e; }
 .tag-empty-state p, .tag-loading-more { color: #887887; }
-
 
