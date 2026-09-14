@@ -468,7 +468,9 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
     detail["matched_loras"] = matched
     detail["lora_trigger_words"] = ", ".join(triggers)
     detail["lora_artist_strings"] = "；".join(artist_strings)
-    detail["lora_style_tags"] = ", ".join([*artist_strings, *triggers])
+    artist_text = "；".join(artist_strings).casefold()
+    non_repeated_triggers = [trigger for trigger in triggers if trigger.casefold() not in artist_text]
+    detail["lora_style_tags"] = ", ".join([*artist_strings, *non_repeated_triggers])
     detail["image_tags"] = ", ".join(image_tokens)
     detail["character_tags"] = ", ".join(character_tokens)
 

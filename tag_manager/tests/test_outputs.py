@@ -136,7 +136,7 @@ class TestOutputsFeature(unittest.TestCase):
         detail = get_output_image_detail(image_id=image_id)
         self.assertEqual(detail["lora_trigger_words"], "stella, stella style")
         self.assertEqual(detail["lora_artist_strings"], "星绘画风，触发词@stella")
-        self.assertEqual(detail["lora_style_tags"], "星绘画风，触发词@stella, stella, stella style")
+        self.assertEqual(detail["lora_style_tags"], "星绘画风，触发词@stella, stella style")
         self.assertEqual(detail["image_tags"], "stella, stella style, 1girl, blue eyes")
         self.assertEqual(detail["character_tags"], "1girl, blue eyes")
 
@@ -234,6 +234,17 @@ class TestOutputsFeature(unittest.TestCase):
         self.assertIn('id="inspector-image-tags"', template)
         self.assertIn('id="inspector-character-tags"', template)
         self.assertIn("copyInspectorTags", template)
+
+    def test_shell_brand_does_not_wrap_when_sidebar_is_narrow(self):
+        css = (Path(__file__).parents[1] / "static" / "ui" / "shell.css").read_text(encoding="utf-8")
+        self.assertIn(".brand-text-col {", css)
+        self.assertIn("white-space: nowrap", css)
+        self.assertIn("text-overflow: ellipsis", css)
+
+    def test_shell_stylesheet_version_refreshes_after_layout_fix(self):
+        template = (Path(__file__).parents[1] / "templates" / "base.html").read_text(encoding="utf-8")
+        self.assertIn('/static/ui/shell.css?v=93', template)
+        self.assertIn('/static/ui/pages/images.css?v=96', template)
 
     def test_fill_workbench_opens_workbench_after_staging_prompt(self):
         template = (Path(__file__).parents[1] / "templates" / "outputs.html").read_text(encoding="utf-8")
