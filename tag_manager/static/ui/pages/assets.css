@@ -345,6 +345,43 @@
   box-shadow: var(--shadow-sm);
 }
 
+.lora-category-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--mochi-border);
+  box-shadow: var(--shadow-sm);
+  font-size: 10px;
+  font-weight: 700;
+  color: #765860;
+}
+
+.lora-category-style { color: #8a5c9d; background: rgba(250, 239, 255, 0.94); }
+.lora-category-character { color: #8b6951; background: rgba(255, 245, 236, 0.94); }
+
+.lora-category-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--mochi-ink-muted);
+  font-size: 12px;
+}
+
+.lora-category-control select {
+  min-width: 72px;
+  padding: 4px 8px;
+  border: 1px solid #e7ccd9;
+  border-radius: 8px;
+  background: #fff9fc;
+  color: #5c4153;
+  font: inherit;
+}
+
+.lora-category-tabs { margin-left: 0; }
+
 /* 3. Recipe Cards Grid */
 .recipe-grid {
   display: grid;

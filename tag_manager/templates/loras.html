@@ -29,6 +29,11 @@
     <button type="button" class="tab" data-model="flux" onclick="filterLoraModel('flux')">Flux</button>
     <button type="button" class="tab" data-model="sd1" onclick="filterLoraModel('sd1')">SD 1.5</button>
   </nav>
+  <nav class="recipe-tabs lora-filter-tabs lora-category-tabs" id="loraCategoryTabs" aria-label="LoRA 分类">
+    <button type="button" class="tab active" data-category="all" onclick="filterLoraCategory('all')">全部分类</button>
+    <button type="button" class="tab" data-category="character" onclick="filterLoraCategory('character')">角色</button>
+    <button type="button" class="tab" data-category="style" onclick="filterLoraCategory('style')">画风</button>
+  </nav>
   <div class="search-box">
     <span class="search-icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
@@ -40,7 +45,7 @@
 
 <div class="lora-grid">
   {% for card in cards %}
-  <div class="lora-card" data-lora-id="{{ card.id }}" data-base-model="{{ (card.base_model or '') | lower }}" data-name="{{ (card.name or '') | lower }}" data-filename="{{ (card.filename or '') | lower }}" data-triggers="{{ (card.trigger_words or '') | lower }}">
+  <div class="lora-card" data-lora-id="{{ card.id }}" data-category="{{ card.category }}" data-base-model="{{ (card.base_model or '') | lower }}" data-name="{{ (card.name or '') | lower }}" data-filename="{{ (card.filename or '') | lower }}" data-triggers="{{ (card.trigger_words or '') | lower }}">
     <div class="lora-card-preview">
       {% if card.preview_image %}
       <img src="/lora-previews/{{ card.preview_image }}" alt="{{ card.name }}" loading="lazy" onclick="openLoraPreview(this)" title="点击查看完整预览">
@@ -48,6 +53,7 @@
       <div class="lora-card-placeholder">LoRA</div>
       {% endif %}
       <span class="lora-badge lora-badge-{{ card.base_model | lower | replace('.', '-') }}">{{ card.base_model }}</span>
+      <span class="lora-category-badge lora-category-{{ card.category }}">{{ '画风' if card.category == 'style' else '角色' }}</span>
     </div>
     <div class="lora-card-body">
       <h3 title="{{ card.filename }}">{{ card.name }}</h3>
@@ -55,6 +61,13 @@
         {% if card.net_dim %}<span>dim {{ card.net_dim }}</span>{% endif %}
         <span>权重 {{ '%.2f' | format(card.suggested_weight) }}</span>
       </div>
+      <label class="lora-category-control">
+        分类
+        <select onchange="saveLoraCategory(this, {{ card.id }})" aria-label="{{ card.name }} 的 LoRA 分类">
+          <option value="character"{% if card.category == 'character' %} selected{% endif %}>角色</option>
+          <option value="style"{% if card.category == 'style' %} selected{% endif %}>画风</option>
+        </select>
+      </label>
       {% if card.trigger_words %}
       <div class="lora-card-triggers">
         <input class="lora-trigger-input" value="{{ card.trigger_words }}" data-lora-trigger="{{ card.id }}" placeholder="输入触发词，用逗号分隔">
@@ -155,10 +168,19 @@ function copyLoraCardPrompt(button) {
 }
 
 var currentLoraModel = 'all';
+var currentLoraCategory = 'all';
 function filterLoraModel(model) {
   currentLoraModel = model;
   document.querySelectorAll('#loraModelTabs .tab').forEach(function(t) {
     t.classList.toggle('active', t.dataset.model === model);
+  });
+  filterLoras();
+}
+
+function filterLoraCategory(category) {
+  currentLoraCategory = category;
+  document.querySelectorAll('#loraCategoryTabs .tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.category === category);
   });
   filterLoras();
 }
@@ -174,6 +196,7 @@ function filterLoras() {
     var name = card.dataset.name || '';
     var filename = card.dataset.filename || '';
     var triggers = card.dataset.triggers || '';
+    var category = card.dataset.category || 'character';
     
     var matchModel = false;
     if (currentLoraModel === 'all') matchModel = true;
@@ -185,7 +208,8 @@ function filterLoras() {
       matchQuery = name.indexOf(q) >= 0 || filename.indexOf(q) >= 0 || triggers.indexOf(q) >= 0;
     }
     
-    var show = matchModel && matchQuery;
+    var matchCategory = currentLoraCategory === 'all' || category === currentLoraCategory;
+    var show = matchModel && matchCategory && matchQuery;
     card.style.display = show ? '' : 'none';
     if (show) visibleCount++;
   });
@@ -206,6 +230,7 @@ function clearLoraFilters() {
   var input = document.getElementById('loraSearchInput');
   if (input) input.value = '';
   filterLoraModel('all');
+  filterLoraCategory('all');
 }
 async function saveLoraTriggers(button, cardId) {
   const input = document.querySelector(`[data-lora-trigger="${cardId}"]`);
@@ -216,6 +241,21 @@ async function saveLoraTriggers(button, cardId) {
   input.closest('.lora-card').dataset.triggers = input.value.toLowerCase();
   button.textContent = '已保存';
   setTimeout(() => button.textContent = '保存', 1200);
+}
+
+async function saveLoraCategory(select, cardId) {
+  const response = await fetch(`/api/loras/${cardId}/category`, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({category: select.value}),
+  });
+  if (!response.ok) { alert('LoRA 分类保存失败'); return; }
+  const card = select.closest('.lora-card');
+  card.dataset.category = select.value;
+  const badge = card.querySelector('.lora-category-badge');
+  badge.className = 'lora-category-badge lora-category-' + select.value;
+  badge.textContent = select.value === 'style' ? '画风' : '角色';
+  filterLoras();
 }
 
 document.querySelectorAll('.lora-trigger-input').forEach(input => {

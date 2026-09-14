@@ -226,6 +226,7 @@ def init_db(db_path: Path | str | None = None) -> None:
                 net_dim TEXT DEFAULT '',
                 suggested_weight REAL DEFAULT 0.8,
                 trigger_words TEXT DEFAULT '',
+                category TEXT DEFAULT '',
                 tag_frequency TEXT DEFAULT '',
                 civitai_text TEXT DEFAULT '',
                 preview_image TEXT DEFAULT '',
@@ -434,6 +435,7 @@ def init_db(db_path: Path | str | None = None) -> None:
         )
         ensure_gallery_image_columns(conn)
         ensure_output_images_columns(conn)
+        ensure_lora_card_columns(conn)
         ensure_video_decrypt_job_columns(conn)
         ensure_llm_settings_columns(conn)
 
@@ -455,6 +457,12 @@ def ensure_output_images_columns(conn: sqlite3.Connection) -> None:
     for name, definition in columns.items():
         if name not in existing:
             conn.execute(f"ALTER TABLE output_images ADD COLUMN {name} {definition}")
+
+
+def ensure_lora_card_columns(conn: sqlite3.Connection) -> None:
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(lora_cards)").fetchall()}
+    if "category" not in existing:
+        conn.execute("ALTER TABLE lora_cards ADD COLUMN category TEXT DEFAULT ''")
 
 
 def ensure_gallery_image_columns(conn: sqlite3.Connection) -> None:
@@ -612,6 +620,7 @@ def upsert_lora_card(
     net_dim: str = "",
     suggested_weight: float = 0.8,
     trigger_words: str = "",
+    category: str = "",
     tag_frequency: str = "",
     civitai_text: str = "",
     notes: str = "",
@@ -624,21 +633,22 @@ def upsert_lora_card(
         conn.execute(
             """
             INSERT INTO lora_cards
-                (name, filename, base_model, net_dim, suggested_weight, trigger_words, tag_frequency, civitai_text, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (name, filename, base_model, net_dim, suggested_weight, trigger_words, category, tag_frequency, civitai_text, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(name) DO UPDATE SET
                 filename=COALESCE(NULLIF(excluded.filename, ''), lora_cards.filename),
                 base_model=COALESCE(NULLIF(excluded.base_model, ''), lora_cards.base_model),
                 net_dim=COALESCE(NULLIF(excluded.net_dim, ''), lora_cards.net_dim),
                 suggested_weight=excluded.suggested_weight,
                 trigger_words=COALESCE(NULLIF(excluded.trigger_words, ''), lora_cards.trigger_words),
+                category=COALESCE(NULLIF(excluded.category, ''), lora_cards.category),
                 tag_frequency=COALESCE(NULLIF(excluded.tag_frequency, ''), lora_cards.tag_frequency),
                 civitai_text=COALESCE(NULLIF(excluded.civitai_text, ''), lora_cards.civitai_text),
                 notes=COALESCE(NULLIF(excluded.notes, ''), lora_cards.notes),
                 updated_at=CURRENT_TIMESTAMP
             """,
             (name, clean_text(filename), clean_text(base_model), clean_text(net_dim),
-             suggested_weight, clean_text(trigger_words), tag_frequency, civitai_text, clean_text(notes)),
+             suggested_weight, clean_text(trigger_words), clean_text(category), tag_frequency, civitai_text, clean_text(notes)),
         )
         row = conn.execute("SELECT id FROM lora_cards WHERE name=?", (name,)).fetchone()
         return row["id"] if row else 0
@@ -673,7 +683,15 @@ def _decorate_lora_card(card: dict) -> dict:
         weight=card.get("suggested_weight"),
         source="lora_library",
     )
+    category = str(card.get("category") or "").strip().lower()
+    card["category"] = category if category in {"character", "style"} else infer_lora_category(card)
     return card
+
+
+def infer_lora_category(card: dict) -> str:
+    text = " ".join(str(card.get(name) or "") for name in ("name", "filename", "trigger_words")).lower()
+    style_markers = ("画风", "风格", "画師", "画师", "style", "artist", "watercolor", "lineart", "油画")
+    return "style" if any(marker in text for marker in style_markers) else "character"
 
 
 def update_lora_card_preview(card_id: int, preview_image: str, connect_factory=connect) -> None:
@@ -689,6 +707,14 @@ def update_lora_card_triggers(card_id: int, trigger_words: str, connect_factory=
         conn.execute(
             "UPDATE lora_cards SET trigger_words=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
             (clean_text(trigger_words), card_id),
+        )
+
+
+def update_lora_card_category(card_id: int, category: str, connect_factory=connect) -> None:
+    with connect_factory() as conn:
+        conn.execute(
+            "UPDATE lora_cards SET category=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (category, card_id),
         )
 
 

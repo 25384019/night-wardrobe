@@ -111,6 +111,7 @@ class LoraRouteTests(unittest.TestCase):
             mock.patch.object(lora_routes, "get_lora_card", lambda *a, **kw: db.get_lora_card(*a, connect_factory=factory, **kw)),
             mock.patch.object(lora_routes, "get_lora_card_by_name", lambda *a, **kw: db.get_lora_card_by_name(*a, connect_factory=factory, **kw)),
             mock.patch.object(lora_routes, "update_lora_card_preview", lambda *a, **kw: db.update_lora_card_preview(*a, connect_factory=factory, **kw)),
+            mock.patch.object(lora_routes, "update_lora_card_category", lambda *a, **kw: db.update_lora_card_category(*a, connect_factory=factory, **kw)),
             mock.patch.object(lora_routes, "delete_lora_card", lambda *a, **kw: db.delete_lora_card(*a, connect_factory=factory, **kw)),
             mock.patch.object(lora_routes, "LORA_PREVIEW_DIR", self.preview_dir),
         ]
@@ -171,6 +172,26 @@ class LoraRouteTests(unittest.TestCase):
         resp = self.client.post("/api/loras/civitai", json={"name": "ghost", "civitai_text": "{}"})
         self.assertEqual(404, resp.status_code)
 
+    def test_lora分类可自动识别并手动修改(self) -> None:
+        style_id = db.upsert_lora_card(
+            "水彩画风",
+            filename="watercolor_style.safetensors",
+            connect_factory=lambda: db.connect(self.db_path),
+        )
+        character_id = db.upsert_lora_card(
+            "小明",
+            filename="xiaoming.safetensors",
+            connect_factory=lambda: db.connect(self.db_path),
+        )
+        style = db.get_lora_card(style_id, connect_factory=lambda: db.connect(self.db_path))
+        character = db.get_lora_card(character_id, connect_factory=lambda: db.connect(self.db_path))
+        self.assertEqual("style", style["category"])
+        self.assertEqual("character", character["category"])
+
+        resp = self.client.patch(f"/api/loras/{character_id}/category", json={"category": "style"})
+        self.assertEqual(200, resp.status_code)
+        self.assertEqual("style", resp.json()["card"]["category"])
+
     def test预览图上传与删除(self) -> None:
         self.parse_one()
         card = db.get_lora_card_by_name("my-lora", connect_factory=lambda: db.connect(self.db_path))
@@ -209,6 +230,8 @@ class LoraTemplateContractTests(unittest.TestCase):
         self.assertIn("uploadLoraPreview", self.template)
         self.assertIn('id="loraImageDialog"', self.template)
         self.assertIn("openLoraPreview", self.template)
+        self.assertIn('id="loraCategoryTabs"', self.template)
+        self.assertIn("saveLoraCategory", self.template)
 
     def test前端只传header不过整文件(self) -> None:
         self.assertIn("file.slice(0, 8)", self.template)

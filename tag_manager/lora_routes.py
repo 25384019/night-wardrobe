@@ -23,6 +23,7 @@ from .db import (
     get_lora_card_by_name,
     list_lora_cards,
     update_lora_card_preview,
+    update_lora_card_category,
     update_lora_card_triggers,
     upsert_lora_card,
 )
@@ -54,6 +55,10 @@ class LoraCivitaiPayload(BaseModel):
 
 class LoraTriggerPayload(BaseModel):
     trigger_words: str = ""
+
+
+class LoraCategoryPayload(BaseModel):
+    category: str
 
 
 def _error(message: str, status_code: int = 400) -> JSONResponse:
@@ -152,6 +157,16 @@ def update_lora_triggers(card_id: int, payload: LoraTriggerPayload):
     if get_lora_card(card_id) is None:
         return _error("LoRA 卡不存在", 404)
     update_lora_card_triggers(card_id, payload.trigger_words)
+    return {"card": get_lora_card(card_id)}
+
+
+@router.patch("/api/loras/{card_id}/category")
+def update_lora_category(card_id: int, payload: LoraCategoryPayload):
+    if payload.category not in {"character", "style"}:
+        return _error("LoRA 分类仅支持角色或画风", 422)
+    if get_lora_card(card_id) is None:
+        return _error("LoRA 卡不存在", 404)
+    update_lora_card_category(card_id, payload.category)
     return {"card": get_lora_card(card_id)}
 
 
