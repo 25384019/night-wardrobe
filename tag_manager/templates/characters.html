@@ -53,7 +53,7 @@
 {% for row in rows %}
   <article class="char-card">
     <div class="char-card-preview">
-      {% if row.preview_image %}<img src="/character-previews/{{ row.preview_image }}" alt="{{ row.name }}" loading="lazy">{% else %}<span>角色预览</span>{% endif %}
+      {% if row.preview_image %}<img src="/character-previews/{{ row.preview_image }}" alt="{{ row.name }}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('is-fallback')">{% else %}<span>角色预览</span>{% endif %}
     </div>
     <div class="char-card-header">
       <h3>{{ row.name }}</h3>
@@ -67,7 +67,11 @@
       </div>
     </div>
     <form class="char-preview-upload" method="post" action="/characters/{{ row.id }}/preview" enctype="multipart/form-data">
-      <label class="btn-sm">上传预览图<input type="file" name="file" accept=".png,.jpg,.jpeg,.webp" hidden onchange="this.form.submit()"></label>
+      <label class="btn-sm" title="上传后立即替换当前预览图">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/></svg>
+        <span>{{ '更换预览图' if row.preview_image else '上传预览图' }}</span>
+        <input type="file" name="file" accept=".png,.jpg,.jpeg,.webp" hidden onchange="this.form.submit()">
+      </label>
     </form>
     {% if row.lora %}
     <div class="char-field">

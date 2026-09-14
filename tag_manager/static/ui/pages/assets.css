@@ -1,0 +1,851 @@
+/* =========================================================================
+   Mochi Atelier · Assets Stylesheet (Characters, LoRAs, Recipes, Tags)
+   Night Wardrobe UI vNext
+   ========================================================================= */
+
+/* General Assets Container */
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 20px 24px 12px;
+}
+
+.page-head h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--mochi-charcoal);
+  margin: 0;
+}
+
+.page-head p {
+  font-size: 12px;
+  color: var(--mochi-mauve);
+  margin: 4px 0 0;
+}
+
+.page-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-head-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: var(--radius-full);
+  background: var(--mochi-milk) !important;
+  color: var(--mochi-charcoal) !important;
+  border: 1px solid var(--mochi-border) !important;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.page-head-actions button:hover {
+  background: #FFF5EE !important;
+  border-color: rgba(247, 190, 156, 0.5) !important;
+  color: var(--mochi-charcoal) !important;
+  transform: translateY(-0.5px);
+}
+
+/* Primary CTA in page head (e.g. "+ 新增角色", "+ 新增配方", "＋ 上传 LoRA") */
+.page-head-actions button:last-child {
+  background: var(--mochi-gradient) !important;
+  color: var(--mochi-charcoal) !important;
+  font-weight: 600 !important;
+  border: 1px solid rgba(247, 190, 156, 0.4) !important;
+  box-shadow: 0 2px 8px rgba(247, 190, 156, 0.35) !important;
+}
+
+.page-head-actions button:last-child:hover {
+  box-shadow: 0 4px 14px rgba(247, 190, 156, 0.45) !important;
+  opacity: 0.95;
+}
+
+/* Common Assets Toolbar */
+.toolbar {
+  margin: 0 24px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 14px;
+  background: rgba(255, 246, 238, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--mochi-border);
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+
+.recipe-tabs,
+.lora-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.recipe-tabs .tab,
+.lora-filter-tabs .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mochi-mauve);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.recipe-tabs .tab:hover,
+.lora-filter-tabs .tab:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--mochi-charcoal);
+}
+
+.recipe-tabs .tab.active,
+.lora-filter-tabs .tab.active {
+  background: var(--mochi-milk);
+  color: var(--mochi-charcoal);
+  font-weight: 600;
+  border-color: rgba(247, 197, 168, 0.7);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Floating Dialogs / Panels */
+.floating-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 100;
+  width: 90%;
+  max-width: 520px;
+  background: rgba(255, 253, 249, 0.98);
+  border-radius: 18px;
+  border: 1px solid var(--mochi-border);
+  box-shadow: 0 20px 60px rgba(180, 110, 90, 0.22);
+  backdrop-filter: blur(16px);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--mochi-charcoal);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--mochi-border-light);
+}
+
+.panel-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--mochi-muted);
+  cursor: pointer;
+}
+
+.panel-close:hover {
+  color: var(--mochi-peach);
+}
+
+/* 1. Character Cards Grid */
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  padding: 0 24px 40px;
+}
+
+.char-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 15px;
+  background: #FFFFFF;
+  border: 1px solid var(--mochi-border);
+  box-shadow: var(--shadow-card-diffuse);
+  padding: 10px;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s;
+  overflow: hidden;
+}
+
+.char-card:hover {
+  transform: translateY(-2.5px);
+  box-shadow: 0 12px 28px -4px rgba(220, 145, 128, 0.18);
+  border-color: rgba(247, 197, 168, 0.6);
+}
+
+.char-card-preview {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 11px;
+  overflow: hidden;
+  background: var(--mochi-canvas);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.char-card-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.char-card:hover .char-card-preview img {
+  transform: scale(1.03);
+}
+
+.char-card-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--mochi-charcoal);
+  margin: 0 0 6px;
+}
+
+/* 2. LoRA Cards Grid */
+.lora-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  padding: 0 24px 40px;
+}
+
+.lora-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 15px;
+  background: #FFFFFF;
+  border: 1px solid var(--mochi-border);
+  box-shadow: var(--shadow-card-diffuse);
+  padding: 10px;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s;
+  overflow: hidden;
+}
+
+.lora-card:hover {
+  transform: translateY(-2.5px);
+  box-shadow: 0 12px 28px -4px rgba(220, 145, 128, 0.18);
+  border-color: rgba(247, 197, 168, 0.6);
+}
+
+.lora-card-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 11px;
+  overflow: hidden;
+  background: var(--mochi-canvas);
+  margin-bottom: 8px;
+}
+
+.lora-card-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.lora-card:hover .lora-card-preview img {
+  transform: scale(1.02);
+}
+
+.lora-card-body {
+  min-width: 0;
+}
+
+.lora-card-triggers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+.lora-trigger-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: #fff9fc;
+  border-color: #e7ccd9;
+  color: #443744;
+}
+
+.lora-trigger-actions,
+.lora-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lora-trigger-actions {
+  justify-content: flex-end;
+}
+
+.lora-trigger-actions .btn-sm,
+.lora-card-actions .btn-sm {
+  min-width: max-content;
+  background: #fff7fa;
+  border-color: #e6c9d6;
+  color: #5c4153;
+}
+
+.lora-trigger-actions .btn-sm:hover,
+.lora-card-actions .btn-sm:hover {
+  background: #f9e5ef;
+  border-color: #d992b1;
+  color: #4b3142;
+}
+
+.lora-card-actions {
+  margin-top: auto;
+}
+
+.lora-card-actions form {
+  margin: 0;
+}
+
+.lora-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--mochi-charcoal);
+  border: 1px solid var(--mochi-border);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 3. Recipe Cards Grid */
+.recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 0 24px 40px;
+}
+
+.recipe-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 15px;
+  background: #FFFFFF;
+  border: 1px solid var(--mochi-border);
+  box-shadow: var(--shadow-card-diffuse);
+  padding: 14px;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s;
+  gap: 10px;
+}
+
+.recipe-card:hover {
+  transform: translateY(-2.5px);
+  box-shadow: 0 12px 28px -4px rgba(220, 145, 128, 0.18);
+  border-color: rgba(247, 197, 168, 0.6);
+}
+
+.recipe-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recipe-card-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--mochi-charcoal);
+  margin: 0;
+}
+
+/* Character cards still use the original template fields.  Keep the complete
+   prompt visible and let controls wrap instead of clipping under the card. */
+.char-grid {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  align-items: start;
+}
+
+.char-card {
+  padding: 14px;
+  overflow: hidden;
+}
+
+.char-card-header,
+.char-actions,
+.char-field {
+  flex-wrap: wrap;
+}
+
+.char-card-header {
+  gap: 8px;
+}
+
+.char-card-header h3 {
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.char-actions {
+  display: flex;
+  width: 100%;
+  gap: 6px;
+}
+
+.char-actions .btn-sm,
+.char-preview-upload .btn-sm {
+  min-width: 0;
+}
+
+.char-preview-upload {
+  margin: 0 0 10px;
+}
+
+.char-field {
+  align-items: flex-start;
+}
+
+.char-field label,
+.char-notes {
+  color: var(--mochi-muted);
+}
+
+.char-value {
+  min-width: 0;
+  color: var(--mochi-charcoal);
+  overflow-wrap: anywhere;
+}
+
+.recipe-type-badge {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--mochi-peach-soft);
+  color: var(--mochi-peach);
+  border: 1px solid rgba(244, 154, 170, 0.2);
+}
+
+.recipe-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--mochi-charcoal);
+  line-height: 1.5;
+  background: #FFFBF6;
+  border: 1px solid var(--mochi-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.recipe-text.negative {
+  color: var(--mochi-muted);
+}
+
+/* =========================================================================
+   角色卡专项优化
+   修复：预览区比例失控、图片被裁切、操作按钮断裂、
+         tag 逐字符竖排、服装套组间距塌陷
+   ========================================================================= */
+
+/* 预览区：统一 2:3 竖版（与 LoRA 卡一致），图片完整可见不裁切 */
+.char-card-preview {
+  aspect-ratio: 2 / 3;
+  max-height: 380px;
+  border-radius: 11px;
+  background: linear-gradient(160deg, rgba(244, 154, 170, 0.10), rgba(255, 246, 238, 0.9));
+  border: 1px solid var(--mochi-border-light, rgba(133, 100, 100, 0.12));
+}
+
+.char-card-preview img {
+  object-fit: contain;          /* 保留完整画面，不裁切 */
+  object-position: center;
+}
+
+/* 竖版比例下取消 hover 放大，避免 contain 留白与缩放叠加产生跳动 */
+.char-card:hover .char-card-preview img {
+  transform: none;
+}
+
+/* 无图占位 / 加载失败提示 */
+.char-card-preview > span,
+.char-card-preview.is-fallback::after {
+  color: var(--mochi-muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.char-card-preview.is-fallback::after {
+  content: "预览图加载失败";
+}
+
+/* 头部：标题独占一行，操作按钮整齐成排 */
+.char-card-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.char-card-header h3 {
+  flex: none;
+  font-size: 15px;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.char-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.char-actions form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.char-actions .btn-sm {
+  flex: 0 1 auto;
+  white-space: nowrap;
+  font-size: 11.5px;
+  height: 26px;
+  padding: 0 10px;
+}
+
+/* "+ 填入工作台" is the first action in char-actions */
+.char-actions button:first-child,
+.char-actions .btn-workbench-add {
+  background: var(--mochi-lavender-soft) !important;
+  border: 1px solid rgba(183, 163, 232, 0.35) !important;
+  color: var(--mochi-lavender-text) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 3px rgba(183, 163, 232, 0.15) !important;
+}
+
+.char-actions button:first-child:hover,
+.char-actions .btn-workbench-add:hover {
+  background: #EBE4FA !important;
+  border-color: rgba(183, 163, 232, 0.55) !important;
+  color: #4B3388 !important;
+  box-shadow: 0 2px 6px rgba(183, 163, 232, 0.25) !important;
+}
+
+/* 上传预览图：整行虚线放置条，文字与图标同行不截断 */
+.char-preview-upload {
+  margin: 0 0 10px;
+}
+
+.char-preview-upload .btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  white-space: nowrap;
+  border-style: dashed;
+  border-color: rgba(244, 154, 170, 0.45);
+  background: rgba(244, 154, 170, 0.08);
+  color: var(--mochi-peach);
+  border-radius: var(--radius-md);
+  height: 28px;
+}
+
+.char-preview-upload .btn-sm:hover {
+  background: rgba(244, 154, 170, 0.16);
+  border-color: var(--mochi-peach);
+}
+
+.char-preview-upload .btn-sm svg {
+  flex: 0 0 auto;
+}
+
+/* 字段：tag 串按语义换行，不再逐字符竖排 */
+.char-field {
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.char-field label {
+  flex: 0 0 auto;
+  min-width: 44px;
+  padding-top: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--mochi-mauve);
+}
+
+.char-value {
+  flex: 1 1 150px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--mochi-charcoal);
+  line-height: 1.55;
+  word-break: break-word;      /* 覆盖继承来的 anywhere：优先整词换行 */
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+
+.char-field .btn-copy {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  background: var(--mochi-milk) !important;
+  border: 1px solid var(--mochi-border) !important;
+  color: var(--mochi-mauve) !important;
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  height: 22px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.char-field .btn-copy:hover {
+  background: #FFF5EE !important;
+  border-color: rgba(247, 190, 156, 0.5) !important;
+  color: var(--mochi-charcoal) !important;
+}
+
+.char-notes {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  font-size: 12px;
+  color: var(--mochi-muted);
+  margin: 6px 0;
+}
+
+/* 服装套组：吸底对齐，标题与新增按钮不再挤在一起 */
+.outfit-section {
+  margin-top: auto;
+  border-top: 1px solid var(--mochi-border-light, rgba(133, 100, 100, 0.12));
+  padding-top: 10px;
+}
+
+.outfit-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.outfit-header label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mochi-charcoal);
+}
+
+.outfit-header .btn-sm {
+  font-size: 11px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--mochi-milk) !important;
+  border: 1px solid var(--mochi-border) !important;
+  color: var(--mochi-charcoal) !important;
+}
+
+.outfit-header .btn-sm:hover {
+  background: #FFF5EE !important;
+  border-color: rgba(247, 190, 156, 0.5) !important;
+}
+
+.outfit-add-form {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--mochi-warm-ivory);
+  border: 1px solid var(--mochi-border);
+  border-radius: 10px;
+}
+
+.outfit-add-form input,
+.outfit-add-form textarea {
+  background: #FFFFFF;
+  border: 1px solid var(--mochi-border);
+  border-radius: 7px;
+  color: var(--mochi-charcoal);
+  padding: 6px 10px;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.outfit-add-form input:focus,
+.outfit-add-form textarea:focus {
+  border-color: rgba(247, 190, 156, 0.75);
+  box-shadow: 0 0 0 3px rgba(247, 190, 156, 0.18);
+  outline: none;
+}
+
+.outfit-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--mochi-border-light, rgba(133, 100, 100, 0.1));
+  flex-wrap: wrap;
+}
+
+.outfit-item strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mochi-charcoal);
+  min-width: 50px;
+}
+
+.outfit-tags {
+  flex: 1 1 120px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--mochi-muted);
+  line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.outfit-item .btn-copy {
+  background: var(--mochi-milk) !important;
+  border: 1px solid var(--mochi-border) !important;
+  color: var(--mochi-charcoal) !important;
+  border-radius: 6px;
+  height: 22px;
+  padding: 2px 7px;
+  font-size: 11px;
+}
+
+.outfit-item .btn-copy:hover {
+  background: #FFF5EE !important;
+  border-color: rgba(247, 190, 156, 0.5) !important;
+}
+
+.outfit-item .btn-copy[onclick*="sendCharToWorkbench"] {
+  background: var(--mochi-lavender-soft) !important;
+  border-color: rgba(183, 163, 232, 0.35) !important;
+  color: var(--mochi-lavender-text) !important;
+  font-weight: 600 !important;
+}
+
+.outfit-item .btn-copy[onclick*="sendCharToWorkbench"]:hover {
+  background: #EBE4FA !important;
+  border-color: rgba(183, 163, 232, 0.55) !important;
+  color: #4B3388 !important;
+}
+
+.outfit-item .btn-danger {
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+/* Recipes Actions and Pagination */
+.recipe-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: auto;
+}
+
+.recipe-actions .btn-sm {
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  height: 26px;
+  padding: 0 10px;
+}
+
+.recipe-actions .btn-workbench-add {
+  background: var(--mochi-lavender-soft) !important;
+  border: 1px solid rgba(183, 163, 232, 0.35) !important;
+  color: var(--mochi-lavender-text) !important;
+  font-weight: 600 !important;
+}
+
+.recipe-actions .btn-workbench-add:hover {
+  background: #EBE4FA !important;
+  border-color: rgba(183, 163, 232, 0.55) !important;
+  color: #4B3388 !important;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 28px 0 20px;
+  flex-wrap: wrap;
+  color: var(--mochi-mauve);
+  font-size: 12px;
+}
+
+.pagination .btn-sm {
+  background: var(--mochi-milk) !important;
+  border: 1px solid var(--mochi-border) !important;
+  color: var(--mochi-charcoal) !important;
+  border-radius: 8px !important;
+  padding: 3px 10px;
+  height: 26px;
+}
+
+.pagination .pagination-info {
+  font-weight: 500;
+  color: var(--mochi-mauve);
+  padding: 0 4px;
+}
+
+.page-jump-form input,
+.page-size-selector select {
+  background: var(--mochi-milk) !important;
+  border: 1px solid var(--mochi-border) !important;
+  color: var(--mochi-charcoal) !important;
+  border-radius: 6px !important;
+  height: 26px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+.page-jump-form button {
+  height: 26px;
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: var(--mochi-milk) !important;
+  border: 1px solid var(--mochi-border) !important;
+  color: var(--mochi-charcoal) !important;
+  cursor: pointer;
+}

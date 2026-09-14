@@ -377,12 +377,20 @@ def _dumps_result(data) -> str:
     if sequence is None:
         return text[:TOOL_RESULT_MAX_CHARS] + "[已截断，共 1 条，仅显示前 0 条]"
     total = len(sequence)
-    kept = total - 1
-    while kept >= 0:
-        note = f"[已截断，共 {total} 条，仅显示前 {kept} 条]"
-        piece = json.dumps(rebuild(kept), ensure_ascii=False)
+    low = 0
+    high = total - 1
+    best_kept = 0
+    best_piece = None
+    while low <= high:
+        mid = (low + high) // 2
+        piece = json.dumps(rebuild(mid), ensure_ascii=False)
         if len(piece) <= TOOL_RESULT_MAX_CHARS:
-            return piece + note
-        kept -= 1
-    note = f"[已截断，共 {total} 条，仅显示前 0 条]"
-    return json.dumps(rebuild(0), ensure_ascii=False)[:TOOL_RESULT_MAX_CHARS] + note
+            best_kept = mid
+            best_piece = piece
+            low = mid + 1
+        else:
+            high = mid - 1
+    note = f"[已截断，共 {total} 条，仅显示前 {best_kept} 条]"
+    if best_piece is None:
+        best_piece = json.dumps(rebuild(0), ensure_ascii=False)[:TOOL_RESULT_MAX_CHARS]
+    return best_piece + note

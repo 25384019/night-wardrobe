@@ -88,6 +88,17 @@ class GalleryScanReliabilityTests(unittest.TestCase):
             patch.object(gallery, "connect", lambda: db.connect(self.db_path)),
         )
 
+    def test衣柜节点元数据优先作为图源记录(self) -> None:
+        positive, negative, _, _, _, loras, _, _, source, _ = gallery.extract_prompts({
+            "night_wardrobe_positive": "klee, sunset",
+            "night_wardrobe_negative": "blurry",
+            "night_wardrobe_loras": "klee.safetensors:1.0",
+        })
+        self.assertEqual("klee, sunset", positive)
+        self.assertEqual("blurry", negative)
+        self.assertEqual("klee.safetensors:1.0", loras)
+        self.assertEqual("夜之主衣柜", source)
+
     def test全量扫描清理磁盘上不存在的记录(self) -> None:
         with db.connect(self.db_path) as conn:
             conn.execute("INSERT INTO gallery_images (path, title) VALUES (?, ?)", ("梦姬图/已删除.png", "已删除"))

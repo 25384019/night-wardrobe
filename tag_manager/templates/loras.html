@@ -58,12 +58,17 @@
       {% if card.trigger_words %}
       <div class="lora-card-triggers">
         <input class="lora-trigger-input" value="{{ card.trigger_words }}" data-lora-trigger="{{ card.id }}" placeholder="输入触发词，用逗号分隔">
-        <button type="button" class="btn-sm" onclick="copyLoraTriggers(this)" data-triggers="{{ card.trigger_words }}">复制触发词</button>
+        <div class="lora-trigger-actions">
+          <button type="button" class="btn-sm" onclick="saveLoraTriggers(this, {{ card.id }})">保存</button>
+          <button type="button" class="btn-sm" onclick="copyLoraTriggers(this)" data-triggers="{{ card.trigger_words }}">复制</button>
+        </div>
       </div>
       {% else %}
       <div class="lora-card-triggers">
         <input class="lora-trigger-input" value="" data-lora-trigger="{{ card.id }}" placeholder="添加触发词，用逗号分隔">
-        <button type="button" class="btn-sm" onclick="saveLoraTriggers(this, {{ card.id }})">保存触发词</button>
+        <div class="lora-trigger-actions">
+          <button type="button" class="btn-sm" onclick="saveLoraTriggers(this, {{ card.id }})">保存</button>
+        </div>
       </div>
       {% endif %}
       {% if card.civitai_text %}
@@ -80,8 +85,8 @@
       {% endif %}
       {% if card.notes %}<p class="lora-card-notes">{{ card.notes }}</p>{% endif %}
       <div class="lora-card-actions">
-        <button type="button" class="btn-sm btn-workbench-add" onclick="sendLoraToWorkbench('{{ card.name|replace("'", "\\'") }}', {{ card.suggested_weight or 1.0 }}, '{{ (card.trigger_words or '') | replace("'", "\\'") }}')" title="将 LoRA 标签与触发词填入提示词工作台">+ 填入工作台</button>
-        <button type="button" class="btn-sm" onclick="copyFullLoraPrompt(this, '{{ card.name|replace("'", "\\'") }}', {{ card.suggested_weight or 1.0 }}, '{{ (card.trigger_words or '') | replace("'", "\\'") }}')" title="复制完整的 <lora:...> 及触发词">复制 Prompt</button>
+        <button type="button" class="btn-sm btn-workbench-add" data-lora-name="{{ card.name }}" data-lora-weight="{{ card.suggested_weight or 1.0 }}" onclick="sendLoraCardToWorkbench(this)" title="将 LoRA 标签与触发词填入提示词工作台">+ 填入工作台</button>
+        <button type="button" class="btn-sm" data-lora-name="{{ card.name }}" data-lora-weight="{{ card.suggested_weight or 1.0 }}" onclick="copyLoraCardPrompt(this)" title="复制完整的 LoRA 标签及触发词">复制提示词</button>
         <label class="btn-sm lora-preview-btn">
           传预览图
           <input type="file" accept=".png,.jpg,.jpeg,.webp" hidden onchange="uploadLoraPreview(this, {{ card.id }})">
@@ -124,14 +129,27 @@ function sendLoraToWorkbench(name, weight, triggers) {
   }
 }
 
+function getLoraCardTriggers(button) {
+  const input = button.closest('.lora-card').querySelector('.lora-trigger-input');
+  return input ? input.value.trim() : '';
+}
+
+function sendLoraCardToWorkbench(button) {
+  sendLoraToWorkbench(button.dataset.loraName, Number(button.dataset.loraWeight), getLoraCardTriggers(button));
+}
+
 function copyFullLoraPrompt(btn, name, weight, triggers) {
   var loraTag = '<lora:' + name + ':' + weight + '>';
   var full = triggers && triggers.trim() ? (loraTag + ', ' + triggers.trim()) : loraTag;
   navigator.clipboard.writeText(full).then(function() {
     btn.textContent = '已复制';
-    setTimeout(function() { btn.textContent = '复制 Prompt'; }, 1200);
-    if (window.showToast) window.showToast('已复制「' + name + '」完整 Prompt', 'success');
+    setTimeout(function() { btn.textContent = '复制提示词'; }, 1200);
+    if (window.showToast) window.showToast('已复制「' + name + '」完整提示词', 'success');
   });
+}
+
+function copyLoraCardPrompt(button) {
+  copyFullLoraPrompt(button, button.dataset.loraName, Number(button.dataset.loraWeight), getLoraCardTriggers(button));
 }
 
 var currentLoraModel = 'all';
@@ -193,12 +211,16 @@ async function saveLoraTriggers(button, cardId) {
   if (!response.ok) { alert('触发词保存失败'); return; }
   const copyButton = input.parentElement.querySelector('[data-triggers]');
   if (copyButton) copyButton.dataset.triggers = input.value;
+  input.closest('.lora-card').dataset.triggers = input.value.toLowerCase();
   button.textContent = '已保存';
-  setTimeout(() => button.textContent = '保存触发词', 1200);
+  setTimeout(() => button.textContent = '保存', 1200);
 }
 
 document.querySelectorAll('.lora-trigger-input').forEach(input => {
-  input.addEventListener('change', () => saveLoraTriggers(input.nextElementSibling, Number(input.dataset.loraTrigger)));
+  input.addEventListener('change', () => {
+    const button = input.parentElement.querySelector('.lora-trigger-actions button');
+    if (button) saveLoraTriggers(button, Number(input.dataset.loraTrigger));
+  });
 });
 
 function openLoraPreview(image) {

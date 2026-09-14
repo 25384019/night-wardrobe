@@ -31,7 +31,8 @@
 <div class="ws-workbench" id="wsWorkbench">
 <div class="ws-layout">
   <!-- 左侧配方区 -->
-  <aside class="ws-recipe-panel">
+  <aside class="ws-recipe-panel" id="wsRecipePanel">
+    <div class="ws-recipe-resizer" id="wsRecipeResizer" role="separator" aria-orientation="vertical" aria-label="拖动调整配方区宽度" title="拖动调整配方区宽度 (双击恢复默认)"></div>
     <div class="ws-panel-title">配方</div>
 
     <div class="ws-field">
@@ -812,5 +813,67 @@ if (window.WorkshopCopilot && window.WorkshopCopilot.init) {
   });
 }
 if (window.CopilotSettings && window.CopilotSettings.bind) window.CopilotSettings.bind();
+
+// --- Draggable boundary for Recipe Panel ---
+(function() {
+  var resizer = document.getElementById('wsRecipeResizer');
+  var panel = document.getElementById('wsRecipePanel');
+  var layout = document.querySelector('.ws-layout');
+  if (!resizer || !panel || !layout) return;
+  var dragging = false;
+  var startX = 0;
+  var startWidth = 320;
+  var DEFAULT_WIDTH = 320;
+  var MIN_WIDTH = 240;
+
+  function setRecipeWidth(w, persist) {
+    var maxWidth = Math.max(MIN_WIDTH, Math.min(600, Math.floor(window.innerWidth * 0.5)));
+    var clamped = Math.max(MIN_WIDTH, Math.min(maxWidth, Math.round(w)));
+    layout.style.gridTemplateColumns = clamped + 'px minmax(0, 1fr)';
+    if (persist) {
+      localStorage.setItem('wardrobe_ws_recipe_width', clamped + 'px');
+    }
+    return clamped;
+  }
+
+  var saved = localStorage.getItem('wardrobe_ws_recipe_width');
+  if (saved) {
+    var parsed = parseInt(saved, 10);
+    if (parsed && !isNaN(parsed)) setRecipeWidth(parsed, false);
+  }
+
+  resizer.addEventListener('mousedown', function(e) {
+    if (window.innerWidth <= 860) return;
+    dragging = true;
+    startX = e.clientX;
+    startWidth = panel.getBoundingClientRect().width;
+    document.body.classList.add('resizing');
+    document.body.style.cursor = 'col-resize';
+    resizer.classList.add('is-dragging');
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var delta = e.clientX - startX;
+    setRecipeWidth(startWidth + delta, false);
+  });
+
+  window.addEventListener('mouseup', function(e) {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('resizing');
+    document.body.style.cursor = '';
+    resizer.classList.remove('is-dragging');
+    var delta = e.clientX - startX;
+    setRecipeWidth(startWidth + delta, true);
+  });
+
+  resizer.addEventListener('dblclick', function(e) {
+    e.preventDefault();
+    setRecipeWidth(DEFAULT_WIDTH, true);
+    if (window.showToast) window.showToast('配方区宽度已恢复默认', 'info', 1000);
+  });
+})();
 </script>
 {% endblock %}

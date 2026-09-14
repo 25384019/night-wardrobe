@@ -48,23 +48,21 @@ from .import_magic_book import import_magic_book
 from .llm import chat_completion, chat_completion_messages, list_models
 from .lora_routes import LORA_PREVIEW_DIR
 from .lora_routes import router as lora_router
-from .manga_routes import router as manga_router
-from .manga_service import manga_service
 from .outputs_routes import router as outputs_router
 from .outputs_service import scan_outputs
 from .prompt_editor import prompt_editor_router
 from .tag_api import router as tag_api_router
-from .video_decrypt_routes import router as video_decrypt_router
-from .video_decrypt_service import video_decrypt_service
 from .workflows import WORKFLOW_DIR, WORKFLOW_EXTENSIONS, export_workflows_zip, import_workflows_zip, save_workflow_bytes, scan_workflows
 
 DEV_MODE = os.environ.get("WARDROBE_DEV", "").lower() in ("1", "true", "yes")
 
+CHARACTER_PREVIEW_DIR = BASE_DIR / "character_previews"
+CHARACTER_PREVIEW_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+CHARACTER_PREVIEW_MAX_BYTES = 20 * 1024 * 1024
+
 app = FastAPI(title="夜之主衣柜", version="1.24.1")
 app.include_router(tag_api_router)
-app.include_router(video_decrypt_router)
 app.include_router(lora_router)
-app.include_router(manga_router)
 app.include_router(outputs_router)
 app.include_router(prompt_editor_router)
 app.add_middleware(
@@ -80,9 +78,11 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 GALLERY_DIR.mkdir(exist_ok=True)
 WORKFLOW_DIR.mkdir(exist_ok=True)
 LORA_PREVIEW_DIR.mkdir(exist_ok=True)
+CHARACTER_PREVIEW_DIR.mkdir(exist_ok=True)
 app.mount("/gallery-files", StaticFiles(directory=str(GALLERY_DIR)), name="gallery_files")
 app.mount("/workflow-files", StaticFiles(directory=str(WORKFLOW_DIR)), name="workflow_files")
 app.mount("/lora-previews", StaticFiles(directory=str(LORA_PREVIEW_DIR)), name="lora_previews")
+app.mount("/character-previews", StaticFiles(directory=str(CHARACTER_PREVIEW_DIR)), name="character_previews")
 
 
 @app.on_event("startup")
@@ -91,14 +91,11 @@ def startup() -> None:
     scan_gallery(initialize_db=False)
     import threading
     threading.Thread(target=scan_outputs, daemon=True).start()
-    video_decrypt_service.startup()
-    manga_service.startup()
 
 
 @app.on_event("shutdown")
 def shutdown() -> None:
-    video_decrypt_service.shutdown()
-    manga_service.shutdown()
+    pass
 
 
 def redirect(path: str) -> RedirectResponse:
@@ -283,18 +280,9 @@ def current_folder_info(folder: str, inventory_map: dict[str, FolderInventory]) 
     return {"path": folder, "name": name, "parent": parent, **inventory.as_dict()}
 
 
-@app.get("/", response_class=HTMLResponse)
-def index(request: Request):
-    with connect() as conn:
-        stats = {
-            "tags": conn.execute("SELECT COUNT(*) FROM tags").fetchone()[0],
-            "characters": conn.execute("SELECT COUNT(*) FROM characters").fetchone()[0],
-            "recipes": conn.execute("SELECT COUNT(*) FROM recipes").fetchone()[0],
-            "images": conn.execute("SELECT COUNT(*) FROM gallery_images").fetchone()[0],
-            "workflows": conn.execute("SELECT COUNT(*) FROM workflows").fetchone()[0],
-        }
-        recent_images = conn.execute("SELECT * FROM gallery_images ORDER BY updated_at DESC LIMIT 8").fetchall()
-    return templates.TemplateResponse(request, "index.html", {"stats": stats, "recent_images": recent_images})
+@app.get("/")
+def index():
+    return redirect("/workshop")
 
 
 @app.post("/import-magic-book")
@@ -1013,10 +1001,46 @@ def update_character(
     return redirect("/characters")
 
 
+@app.post("/characters/{char_id}/preview")
+async def upload_character_preview(char_id: int, file: UploadFile = File(...)):
+    """保存角色预览图到本地目录，并写回 preview_image 字段。"""
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in CHARACTER_PREVIEW_EXTENSIONS:
+        return redirect("/characters")
+
+    data = await file.read()
+    if not data or len(data) > CHARACTER_PREVIEW_MAX_BYTES:
+        return redirect("/characters")
+
+    CHARACTER_PREVIEW_DIR.mkdir(exist_ok=True)
+    # 同一角色只保留一张预览图，先清理旧扩展名的残留
+    for old in CHARACTER_PREVIEW_DIR.glob(f"{char_id}.*"):
+        if old.is_file():
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    (CHARACTER_PREVIEW_DIR / f"{char_id}{ext}").write_bytes(data)
+
+    with connect() as conn:
+        conn.execute(
+            "UPDATE characters SET preview_image=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (f"{char_id}{ext}", char_id),
+        )
+    return redirect("/characters")
+
+
 @app.post("/characters/{char_id}/delete")
 def delete_character(char_id: int):
     with connect() as conn:
         conn.execute("DELETE FROM characters WHERE id=?", (char_id,))
+    # 连带清理该角色的预览图文件，避免目录里堆积孤儿文件
+    for old in CHARACTER_PREVIEW_DIR.glob(f"{char_id}.*"):
+        if old.is_file():
+            try:
+                old.unlink()
+            except OSError:
+                pass
     return redirect("/characters")
 
 

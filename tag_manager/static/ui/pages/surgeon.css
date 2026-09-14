@@ -1,0 +1,881 @@
+/* Obsidian Atelier - Prompt Surgeon UI */
+
+/* Compact Surgeon Card (In Detail Modal) */
+.surgeon-card-compact {
+  background: var(--surface-1) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 14px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: none !important;
+}
+
+/* Header Row 1 */
+.surgeon-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.surgeon-brand-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.surgeon-brand-sparkle {
+  color: var(--ai);
+  font-size: 14px;
+}
+
+.surgeon-model-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+}
+.status-dot.offline {
+  background: var(--warning);
+}
+
+.btn-key-tertiary {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-muted) !important;
+  font-size: 11px !important;
+  padding: 2px 6px !important;
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  transition: color var(--transition-fast);
+}
+.btn-key-tertiary:hover {
+  color: var(--text-primary) !important;
+  background: var(--surface-2) !important;
+}
+
+/* Header Row 2 (Badges) */
+.surgeon-header-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.surgeon-header-badges .badge {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+/* Scope Selector Chips */
+.surgeon-scopes-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.surgeon-scopes-row::-webkit-scrollbar {
+  display: none;
+}
+
+.surgeon-scope-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.surgeon-scope-chip {
+  height: 28px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-secondary) !important;
+  white-space: nowrap !important;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.surgeon-scope-chip:hover {
+  background: var(--surface-3) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-strong) !important;
+}
+
+.surgeon-scope-chip.active {
+  background: var(--ai-subtle) !important;
+  color: var(--ai) !important;
+  border-color: rgba(154, 140, 248, 0.4) !important;
+  font-weight: 600 !important;
+}
+
+/* Input Row */
+.surgeon-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.surgeon-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px !important;
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  color: var(--text-primary) !important;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.surgeon-input:focus {
+  background: var(--surface-3) !important;
+  border-color: var(--ai) !important;
+  box-shadow: 0 0 0 1px var(--ai) !important;
+  outline: none !important;
+}
+
+.btn-surgeon-preview {
+  height: 34px !important;
+  padding: 0 14px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border-strong) !important;
+  color: var(--text-primary) !important;
+  white-space: nowrap !important;
+  flex-shrink: 0;
+  box-shadow: none !important;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.btn-surgeon-preview:hover {
+  background: var(--surface-3) !important;
+  border-color: var(--border-focus) !important;
+}
+
+/* Meta hints & Advanced Toggle */
+.surgeon-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.surgeon-adv-toggle {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-muted) !important;
+  font-size: 11px !important;
+  padding: 2px 4px !important;
+  cursor: pointer;
+}
+.surgeon-adv-toggle:hover {
+  color: var(--text-primary) !important;
+}
+
+/* Actions Row */
+.surgeon-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-open-studio-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px !important;
+  padding: 0 14px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--ai) !important;
+  color: #0A0C10 !important;
+  border: none !important;
+  white-space: nowrap !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+.btn-open-studio-primary:hover {
+  background: var(--ai-hover) !important;
+}
+
+.btn-history-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-secondary) !important;
+  white-space: nowrap !important;
+  cursor: pointer;
+}
+.btn-history-secondary:hover {
+  background: var(--surface-3) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-strong) !important;
+}
+
+/* Version Drawer (Slide-out from right) */
+.version-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-drawer);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.version-drawer.open {
+  transform: translateX(0);
+}
+
+.version-drawer-header {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.version-drawer-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.version-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.version-node-item {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.version-node-item:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.version-node-item.is-current {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.version-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.version-node-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.version-node-time {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.version-node-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.version-node-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* =========================================================================
+   Prompt Surgeon 独立手术室 (Studio Workspace / Full Page)
+   ========================================================================= */
+
+.prompt-surgeon-page-wrap {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.surgeon-studio-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 14px;
+}
+
+.studio-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.studio-back-btn {
+  white-space: nowrap !important;
+}
+
+.studio-img-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-thumb {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.studio-meta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.studio-filename {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.studio-subinfo {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.studio-topbar-center {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-title-badge {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ai);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.studio-active-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.studio-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.studio-close-icon {
+  font-size: 22px;
+  color: var(--text-muted);
+  text-decoration: none;
+  line-height: 1;
+  padding: 4px;
+  border-radius: var(--radius-xs);
+  transition: color var(--transition-fast);
+}
+.studio-close-icon:hover {
+  color: var(--text-primary);
+}
+
+/* 三栏布局 */
+.surgeon-studio-body {
+  display: grid;
+  grid-template-columns: var(--surgeon-col1, 280px) 1fr var(--surgeon-col3, 380px);
+  gap: 14px;
+  height: calc(100vh - 140px);
+  overflow: hidden;
+  position: relative;
+}
+
+.studio-col {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.studio-col-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  cursor: col-resize;
+  z-index: 35;
+  user-select: none;
+}
+.studio-col-resizer.resizer-left {
+  right: -7px;
+}
+.studio-col-resizer.resizer-right {
+  left: -7px;
+}
+.studio-col-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: transparent;
+  transition: background-color .15s ease, box-shadow .15s ease;
+}
+.studio-col-resizer.resizer-left::after { right: 6px; }
+.studio-col-resizer.resizer-right::after { left: 6px; }
+
+.studio-col-resizer:hover::after,
+.studio-col-resizer.is-dragging::after {
+  background-color: rgba(247, 190, 156, 0.95);
+  box-shadow: 0 0 6px rgba(247, 190, 156, 0.6);
+}
+
+.studio-col-header {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+
+.studio-col-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.studio-branch-indicator {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-3);
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+
+/* 左栏：版本列表 */
+.studio-tree-actions {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.studio-versions-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-version-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  cursor: pointer;
+}
+.studio-version-card:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+.studio-version-card.is-active {
+  border-color: var(--ai) !important;
+  box-shadow: 0 0 12px rgba(154, 140, 248, 0.25) !important;
+}
+
+.studio-version-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.studio-ver-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+.studio-ver-tag.v0 {
+  background: rgba(120, 198, 200, 0.15) !important;
+  color: var(--accent) !important;
+  border: 1px solid rgba(120, 198, 200, 0.3) !important;
+}
+.studio-ver-tag.active {
+  background: rgba(154, 140, 248, 0.15) !important;
+  color: var(--ai) !important;
+  border: 1px solid rgba(154, 140, 248, 0.3) !important;
+}
+
+.studio-ver-time {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.studio-ver-instruction {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.studio-version-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.studio-vbtn {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.studio-vbtn:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+.studio-vbtn.branch {
+  color: var(--accent);
+  border-color: rgba(120, 198, 200, 0.3);
+}
+
+/* 中栏：变动分析 Diff */
+.studio-diff-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.studio-tab-btn {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.studio-tab-btn.active {
+  background: var(--surface-1);
+  border-color: var(--border);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.studio-summary-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.studio-diff-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+.studio-diff-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 24px;
+}
+
+.studio-diff-empty .empty-icon {
+  font-size: 28px;
+  color: var(--ai);
+}
+
+.studio-compare-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compare-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* 右栏：手术操作台 */
+.studio-ops-col {
+  padding: 12px;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.studio-fact-box,
+.studio-working-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fact-box-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.btn-copy-chip {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.btn-copy-chip:hover {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+.studio-readonly-prompt,
+.studio-working-prompt {
+  width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 8px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  resize: vertical;
+}
+
+.studio-control-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.studio-guard-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.studio-chk-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.studio-quick-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.surgeon-quick-chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.surgeon-quick-chip:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+.studio-input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-instruction-input {
+  width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  resize: vertical;
+  transition: border-color var(--transition-fast);
+}
+.studio-instruction-input:focus {
+  border-color: var(--ai);
+  outline: none;
+}
+
+.studio-btn-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btn-studio-apply {
+  height: 34px !important;
+  padding: 0 16px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--ai) !important;
+  color: #0A0C10 !important;
+  border: none !important;
+  white-space: nowrap !important;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background var(--transition-fast);
+}
+.btn-studio-apply:hover {
+  background: var(--ai-hover) !important;
+}
+
+/* 响应式断点 */
+@media (max-width: 1200px) {
+  .surgeon-studio-body {
+    grid-template-columns: 240px 1fr 340px;
+  }
+}
+
+@media (max-width: 960px) {
+  .surgeon-studio-body {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 650px) {
+  .version-drawer {
+    width: 100%;
+  }
+}

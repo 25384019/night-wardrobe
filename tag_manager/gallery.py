@@ -428,12 +428,17 @@ def extract_prompts(meta: dict[str, str]) -> tuple[str, str, str, str, str, str,
     parameters = meta.get("parameters", "") or meta.get("Comment", "") or meta.get("Description", "")
     metadata_json = meta.get("_metadata_json", "")
     metadata_source = meta.get("_metadata_source", "")
+    wardrobe_positive = meta.get("night_wardrobe_positive", "").strip()
+    wardrobe_negative = meta.get("night_wardrobe_negative", "").strip()
+    wardrobe_loras = [item.strip() for item in meta.get("night_wardrobe_loras", "").split(",") if item.strip()]
+    if wardrobe_positive or wardrobe_negative or wardrobe_loras:
+        metadata_source = "夜之主衣柜"
 
     prompt_data = parse_json(prompt_raw)
     workflow_data = parse_json(workflow_raw)
     data = prompt_data or workflow_data
 
-    positive, negative = "", ""
+    positive, negative = wardrobe_positive, wardrobe_negative
     generation_params = ""
 
     if prompt_data and isinstance(prompt_data, dict):
@@ -460,6 +465,7 @@ def extract_prompts(meta: dict[str, str]) -> tuple[str, str, str, str, str, str,
         negative = negative or (texts[1] if len(texts) > 1 else "")
 
     checkpoint, loras = find_checkpoints_and_loras(data) if data is not None else ("", [])
+    loras = wardrobe_loras + loras
 
     if parameters:
         a1111 = parse_a1111_parameters(parameters)

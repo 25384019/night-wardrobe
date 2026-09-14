@@ -3,7 +3,7 @@
 {% block content %}
 <div class="prompt-surgeon-page-wrap">
   <!-- 顶部信息栏 -->
-  <header class="surgeon-studio-topbar" style="margin-bottom: 16px; border-radius: 16px;">
+  <header class="surgeon-studio-topbar">
     <div class="studio-topbar-left">
       <a href="/outputs" class="btn btn-sm btn-secondary studio-back-btn" title="返回生图查看列表">
         ← 返回生图查看
@@ -19,7 +19,7 @@
       </div>
     </div>
     <div class="studio-topbar-center">
-      <span class="studio-title-badge">✨ Prompt Surgeon 独立手术室</span>
+      <span class="studio-title-badge">✦ Prompt Surgeon 独立手术室</span>
       <span class="studio-active-pill" id="studio-active-ver-pill">
         当前激活: {% if active_version and active_version.is_original %}v0 原版{% elif active_version %}v{{ active_version.version_number }}{% else %}v0 原版{% endif %}
       </span>
@@ -42,9 +42,10 @@
   </div>
 
   <!-- 三栏核心手术台 -->
-  <main class="surgeon-studio-body" style="height: calc(100vh - 120px);">
+  <main class="surgeon-studio-body">
     <!-- 左栏：版本分支树与时间线 -->
-    <aside class="studio-col studio-tree-col">
+    <aside class="studio-col studio-tree-col" id="studioColLeft">
+      <div class="studio-col-resizer resizer-left" id="surgeonResizerLeft" role="separator" aria-orientation="vertical" aria-label="拖动调整版本树宽度" title="拖动调整版本树宽度 (双击恢复默认)"></div>
       <div class="studio-col-header">
         <span class="studio-col-title">📜 版本分支树</span>
         <span class="badge" id="studio-ver-count-badge">{{ versions|length }} 个版本</span>
@@ -96,7 +97,8 @@
     </section>
 
     <!-- 右栏：手术操作台 -->
-    <section class="studio-col studio-ops-col">
+    <section class="studio-col studio-ops-col" id="studioColRight">
+      <div class="studio-col-resizer resizer-right" id="surgeonResizerRight" role="separator" aria-orientation="vertical" aria-label="拖动调整操作台宽度" title="拖动调整操作台宽度 (双击恢复默认)"></div>
       <div class="studio-col-header">
         <span class="studio-col-title">🎛️ 手术操作台</span>
         <span class="studio-branch-indicator" id="studio-branch-target-pill">基准: v0</span>
@@ -592,18 +594,131 @@
 
   window.appendStudioPromptToWorkbench = function() {
     var text = document.getElementById('studio-working-prompt-text').value;
-    try {
-      var key = 'current_workbench_tags';
-      var old = localStorage.getItem(key) || '';
-      var combined = old ? (old + ', ' + text) : text;
-      localStorage.setItem(key, combined);
-      if (window.showToast) window.showToast('⚡ 提示词已追加到工坊工作台！', 'success');
-    } catch(e) {
-      if (window.showToast) window.showToast('写入工作台失败', 'error');
+    if (!text || !text.trim()) {
+      if (window.showToast) window.showToast('没有提示词内容', 'info');
+      return;
     }
+    window.appendTagsToWorkbench(text);
+    sessionStorage.setItem('_persist_ws-custom-pos', text.trim());
+    sessionStorage.setItem('_persist_ws-custom-open', JSON.stringify({ pos: true, neg: false }));
+    window.location.href = '/workshop';
   };
 
   document.addEventListener('DOMContentLoaded', init);
+
+  // --- Column Resizers for Prompt Surgeon ---
+  (function() {
+    var resizerLeft = document.getElementById('surgeonResizerLeft');
+    var resizerRight = document.getElementById('surgeonResizerRight');
+    var body = document.querySelector('.surgeon-studio-body');
+    if (!body) return;
+
+    var DEFAULT_COL1 = 280;
+    var DEFAULT_COL3 = 380;
+
+    function setCol1(w, persist) {
+      var clamped = Math.max(200, Math.min(480, Math.round(w)));
+      document.documentElement.style.setProperty('--surgeon-col1', clamped + 'px');
+      if (persist) localStorage.setItem('wardrobe_surgeon_col1', clamped + 'px');
+      return clamped;
+    }
+
+    function setCol3(w, persist) {
+      var clamped = Math.max(280, Math.min(600, Math.round(w)));
+      document.documentElement.style.setProperty('--surgeon-col3', clamped + 'px');
+      if (persist) localStorage.setItem('wardrobe_surgeon_col3', clamped + 'px');
+      return clamped;
+    }
+
+    var savedCol1 = localStorage.getItem('wardrobe_surgeon_col1');
+    if (savedCol1) {
+      var p1 = parseInt(savedCol1, 10);
+      if (p1 && !isNaN(p1)) setCol1(p1, false);
+    }
+    var savedCol3 = localStorage.getItem('wardrobe_surgeon_col3');
+    if (savedCol3) {
+      var p3 = parseInt(savedCol3, 10);
+      if (p3 && !isNaN(p3)) setCol3(p3, false);
+    }
+
+    if (resizerLeft) {
+      var draggingL = false;
+      var startX = 0;
+      var startW = DEFAULT_COL1;
+      var colL = document.getElementById('studioColLeft');
+
+      resizerLeft.addEventListener('mousedown', function(e) {
+        draggingL = true;
+        startX = e.clientX;
+        startW = colL ? colL.getBoundingClientRect().width : DEFAULT_COL1;
+        document.body.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        resizerLeft.classList.add('is-dragging');
+        e.preventDefault();
+      });
+
+      window.addEventListener('mousemove', function(e) {
+        if (!draggingL) return;
+        var delta = e.clientX - startX;
+        setCol1(startW + delta, false);
+      });
+
+      window.addEventListener('mouseup', function(e) {
+        if (!draggingL) return;
+        draggingL = false;
+        document.body.classList.remove('resizing');
+        document.body.style.cursor = '';
+        resizerLeft.classList.remove('is-dragging');
+        var delta = e.clientX - startX;
+        setCol1(startW + delta, true);
+      });
+
+      resizerLeft.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+        setCol1(DEFAULT_COL1, true);
+        if (window.showToast) window.showToast('版本树宽度已恢复默认', 'info', 1000);
+      });
+    }
+
+    if (resizerRight) {
+      var draggingR = false;
+      var startXR = 0;
+      var startWR = DEFAULT_COL3;
+      var colR = document.getElementById('studioColRight');
+
+      resizerRight.addEventListener('mousedown', function(e) {
+        draggingR = true;
+        startXR = e.clientX;
+        startWR = colR ? colR.getBoundingClientRect().width : DEFAULT_COL3;
+        document.body.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        resizerRight.classList.add('is-dragging');
+        e.preventDefault();
+      });
+
+      window.addEventListener('mousemove', function(e) {
+        if (!draggingR) return;
+        var delta = startXR - e.clientX;
+        setCol3(startWR + delta, false);
+      });
+
+      window.addEventListener('mouseup', function(e) {
+        if (!draggingR) return;
+        draggingR = false;
+        document.body.classList.remove('resizing');
+        document.body.style.cursor = '';
+        resizerRight.classList.remove('is-dragging');
+        var delta = startXR - e.clientX;
+        setCol3(startWR + delta, true);
+      });
+
+      resizerRight.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+        setCol3(DEFAULT_COL3, true);
+        if (window.showToast) window.showToast('操作台宽度已恢复默认', 'info', 1000);
+      });
+    }
+  })();
 })();
 </script>
 {% endblock %}

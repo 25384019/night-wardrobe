@@ -1,0 +1,100 @@
+/* =========================================================================
+   Mochi Atelier Design Tokens
+   Night Wardrobe UI vNext
+   ========================================================================= */
+
+:root {
+  /* Surfaces & Canvas Hierarchy */
+  --mochi-canvas: #FFF8F1;
+  --mochi-toolbar: #FFF6EE;
+  --mochi-pale-peach: #FFF5EE;
+  --mochi-milk: #FFFDF9;
+  --mochi-card: #FFFFFF;
+  --mochi-prompt-bg: #FFFBF6;
+
+  /* Backward-compatible semantic surface aliases */
+  --bg-app: #FFF8F1;
+  --surface-1: #FFFDF9;
+  --surface-2: #FFF6EE;
+  --surface-3: #FFF0EC;
+  --surface-overlay: rgba(255, 253, 249, 0.94);
+
+  /* Accents & Brand Warm Tones */
+  --mochi-peach: #F49AAA;
+  --mochi-peach-soft: #FFF0EC;
+  --mochi-peach-border: #F7C5A8;
+  --mochi-butter: #F9DE9E;
+  --mochi-cyan: #8BCFD0;
+
+  /* Backward-compatible accent aliases */
+  --accent: #F49AAA;
+  --accent-hover: #F7BE9C;
+  --accent-subtle: #FFF0EC;
+  --accent-border: #F7C5A8;
+
+  /* AI Accent (Specialized for Copilot, Inspire, Surgeon AI actions) */
+  --mochi-lavender: #B7A3E8;
+  --mochi-lavender-soft: #F2EDFD;
+  --mochi-lavender-text: #644BB0;
+  --ai: #B7A3E8;
+  --ai-hover: #9E8BE0;
+  --ai-subtle: #F2EDFD;
+  --ai-text: #644BB0;
+
+  /* Typography & Warm Neutral Palette */
+  --mochi-charcoal: #483F40;
+  --mochi-mauve: #7E7274;
+  --mochi-muted: #A89B9C;
+
+  --text-primary: #483F40;
+  --text-secondary: #7E7274;
+  --text-muted: #A89B9C;
+
+  /* Borders (Subtle, warm, low opacity) */
+  --mochi-border: rgba(133, 100, 100, 0.08);
+  --mochi-border-light: rgba(133, 100, 100, 0.05);
+  --border: rgba(133, 100, 100, 0.08);
+  --border-strong: rgba(133, 100, 100, 0.14);
+  --border-focus: #F7C5A8;
+
+  /* Status Colors */
+  --success: #10B981;
+  --success-subtle: #ECFDF5;
+  --warning: #F59E0B;
+  --warning-subtle: #FFFBEB;
+  --danger: #EF4444;
+  --danger-subtle: #FEF2F2;
+
+  /* Gradients */
+  --mochi-gradient: linear-gradient(135deg, #F9DE9E 0%, #F7BE9C 48%, #F4ADC0 100%);
+  --mochi-gradient-subtle: linear-gradient(135deg, #F8E5C4 0%, #F6CBB4 48%, #F3BDCC 100%);
+
+  /* Shadows (Warm, soft, diffuse) */
+  --shadow-sm: 0 1px 3px rgba(175, 125, 110, 0.04);
+  --shadow-card: 0 6px 24px rgba(175, 125, 110, 0.07), 0 1px 3px rgba(175, 125, 110, 0.04);
+  --shadow-hover: 0 12px 28px -4px rgba(220, 145, 128, 0.18);
+  --shadow-halo: 0 0 0 3px rgba(247, 190, 156, 0.16), 0 6px 18px -4px rgba(247, 190, 156, 0.22);
+  --shadow-drawer: -4px 0 24px rgba(180, 120, 100, 0.03);
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 15px;
+  --radius-2xl: 18px;
+  --radius-full: 9999px;
+
+  /* Dimensions */
+  --sidebar-width: 210px;
+  --topbar-height: 56px;
+  --inspector-width: 365px;
+
+  /* Fonts */
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+
+  /* Motion */
+  --transition-fast: 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-base: 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}

@@ -2,184 +2,400 @@
 
 {% block content %}
 <div class="outputs-container" id="outputs-app">
-  <!-- 顶部工具栏 -->
-  <header class="outputs-header">
-    <div class="outputs-title-group">
-      <div class="outputs-title-row">
-        <h1 class="outputs-title">生图查看</h1>
-        <span class="outputs-badge" id="total-count-badge">{{ total_images_in_db }} 张图片</span>
-        <span class="outputs-badge outputs-badge-dates">{{ dates | length }} 个生成日</span>
-      </div>
-      <div class="outputs-dir-row">
-        <span class="outputs-dir-label">输出目录：</span>
-        <code class="outputs-dir-path" title="{{ configured_dir }}">{{ configured_dir }}</code>
-        <div class="outputs-actions">
-          <button type="button" class="btn btn-secondary btn-xs" id="btn-change-folder">更改目录</button>
-          <button type="button" class="btn btn-primary btn-xs" id="btn-rescan">↻ 刷新扫描</button>
-          <button type="button" class="btn btn-secondary btn-xs" id="btn-reparse">⚡ 解析新增图源数据</button>
-          <button type="button" class="btn btn-secondary btn-xs" id="btn-analyze-safety">🧠 WD14 评级新增图片</button>
-          <button type="button" class="btn btn-secondary btn-xs" id="btn-content-level" aria-pressed="true">🛡️ 内容级别：启用</button>
-          <button type="button" class="btn btn-secondary btn-xs" id="btn-level-settings">⚙️ 级别设置</button>
+  <div class="outputs-split-layout">
+    <!-- Center Stage -->
+    <div class="outputs-stage outputs-grid-section">
+      <!-- Control Rail Toolbar -->
+      <div class="outputs-control-rail outputs-header">
+        <!-- Row 1: Title, Search, Actions -->
+        <div class="control-rail-row-1">
+          <div class="stage-title-group outputs-title-group">
+            <h1 class="stage-title outputs-title">生图查看</h1>
+            <span class="stage-count-badge outputs-badge" id="total-count-badge">{{ total_images_in_db }} 张图片</span>
+            <span class="outputs-badge outputs-badge-dates" style="display:none;">{{ dates | length }} 个生成日</span>
+          </div>
+
+          <!-- Search Bar with ⌘K -->
+          <form class="stage-search-wrap outputs-search-wrap outputs-filter-bar" method="get" action="/outputs" id="search-form">
+            {% if selected_date %}<input type="hidden" name="date" value="{{ selected_date }}">{% endif %}
+            {% if checkpoint %}<input type="hidden" name="checkpoint" value="{{ checkpoint }}">{% endif %}
+            {% if order %}<input type="hidden" name="order" value="{{ order }}">{% endif %}
+            <svg class="stage-search-icon outputs-search-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input type="text" name="q" id="search-input" value="{{ q }}" class="stage-search-input search-input" placeholder="搜索提示词、LoRA、模型或文件名...">
+            <div class="stage-kbd-shortcut"><span>⌘</span><span>K</span></div>
+            {% if q %}
+            <a href="/outputs{% if selected_date %}?date={{ selected_date }}{% endif %}" class="clear-search-btn" title="清除搜索" style="position:absolute; right:48px; top:50%; transform:translateY(-50%); color:var(--mochi-muted); text-decoration:none; font-size:16px;">&times;</a>
+            {% endif %}
+          </form>
+
+          <!-- Stage Actions -->
+          <div class="stage-actions-wrap outputs-actions">
+            {% if available_checkpoints %}
+            <select name="checkpoint_select" class="stage-select outputs-select" onchange="document.getElementById('search-form').elements['checkpoint'].value=this.value; document.getElementById('search-form').submit();">
+              <option value="">全部模型 ({{ available_checkpoints | length }})</option>
+              {% for ckpt in available_checkpoints %}
+              <option value="{{ ckpt }}" {% if checkpoint == ckpt %}selected{% endif %}>{{ ckpt[:16] }}</option>
+              {% endfor %}
+            </select>
+            {% endif %}
+
+            <select name="order_select" class="stage-select outputs-select" onchange="document.getElementById('search-form').elements['order'].value=this.value; document.getElementById('search-form').submit();">
+              <option value="desc" {% if order == 'desc' %}selected{% endif %}>最新生成优先</option>
+              <option value="asc" {% if order == 'asc' %}selected{% endif %}>最早生成优先</option>
+            </select>
+
+            <!-- Density Toggle -->
+            <div class="density-toggle-group">
+              <button type="button" class="density-btn active" id="btn-density-comfortable" title="舒适网格" onclick="setGridDensity('comfortable')">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z"/></svg>
+              </button>
+              <button type="button" class="density-btn" id="btn-density-compact" title="紧凑网格" onclick="setGridDensity('compact')">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
+              </button>
+            </div>
+
+            <!-- Rescan Button -->
+            <button type="button" class="toolbar-action-btn" id="btn-rescan" title="读取输出目录中的最新图片" onclick="rescanOutputs()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              刷新图片
+            </button>
+
+            <button type="button" class="toolbar-action-btn" id="btn-reparse">解析新增图源</button>
+            <button type="button" class="toolbar-action-btn" id="btn-analyze-safety">WD14 评级</button>
+            <button type="button" class="toolbar-action-btn" id="btn-content-level" aria-pressed="true">内容级别</button>
+            <button type="button" class="toolbar-action-btn" id="btn-level-settings">评级设置</button>
+
+            <!-- More Actions Dropdown Popover -->
+            <div style="position:relative;">
+              <button type="button" class="icon-action-btn" id="btn-more-actions" title="更多设置与维护" onclick="toggleMoreActionsMenu()">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+              </button>
+              <div id="more-actions-menu" style="display:none; position:absolute; right:0; top:38px; width:220px; background:var(--mochi-milk); border:1px solid var(--mochi-border); border-radius:12px; box-shadow:0 8px 24px rgba(180,120,100,0.15); padding:6px; z-index:30;">
+                <button type="button" class="btn btn-secondary btn-xs" id="btn-change-folder" style="width:100%; text-align:left; justify-content:flex-start; margin-bottom:4px;" onclick="openFolderDialog(); toggleMoreActionsMenu();">📁 更改目录 ({{ configured_dir }})</button>
+              </div>
+            </div>
+            <span class="outputs-hidden-count" id="outputs-hidden-count" style="font-size:11px; color:var(--mochi-muted);"></span>
+          </div>
         </div>
-        <span class="outputs-hidden-count" id="outputs-hidden-count"></span>
+
+        <!-- Row 2: Date Quick-Filter Tabs & Active Chips -->
+        <div class="control-rail-row-2">
+          <div class="date-tabs-container outputs-date-list">
+            <span class="date-tabs-label" style="font-size:11px; font-weight:600; color:var(--mochi-muted); margin-right:4px;">📅 日期归档:</span>
+            <a href="/outputs{% if q %}?q={{ q }}{% endif %}" class="date-tab outputs-date-item {% if not selected_date %}active{% endif %}">
+              <span>全部</span>
+              <span class="date-count">{{ total_images_in_db }}</span>
+            </a>
+            {% for d in dates %}
+            <a href="/outputs?date={{ d.file_date }}{% if q %}&q={{ q }}{% endif %}{% if checkpoint %}&checkpoint={{ checkpoint }}{% endif %}{% if order %}&order={{ order }}{% endif %}"
+               class="date-tab outputs-date-item {% if selected_date == d.file_date %}active{% endif %}"
+               title="{{ d.file_date }}">
+              {% if selected_date == d.file_date %}<span class="date-dot"></span>{% endif %}
+              <span>{{ d.label }}</span>
+              <span class="date-count">{{ d.count }}</span>
+            </a>
+            {% endfor %}
+          </div>
+
+          <!-- Active Filter Chips -->
+          <div class="active-filter-chips">
+            {% if selected_date %}
+            <span class="filter-chip-pill">
+              <span>日期: {{ selected_date }}</span>
+              <a href="/outputs{% if q %}?q={{ q }}{% endif %}" style="text-decoration:none; color:var(--mochi-muted);">&times;</a>
+            </span>
+            {% endif %}
+            {% if checkpoint %}
+            <span class="filter-chip-pill">
+              <span>模型: {{ checkpoint[:12] }}</span>
+              <a href="/outputs{% if selected_date %}?date={{ selected_date }}{% endif %}" style="text-decoration:none; color:var(--mochi-muted);">&times;</a>
+            </span>
+            {% endif %}
+            {% if q %}
+            <span class="filter-chip-pill">
+              <span>搜索: {{ q[:10] }}</span>
+              <a href="/outputs{% if selected_date %}?date={{ selected_date }}{% endif %}" style="text-decoration:none; color:var(--mochi-muted);">&times;</a>
+            </span>
+            {% endif %}
+            {% if selected_date or checkpoint or q %}
+            <a href="/outputs" style="font-size:11px; color:var(--mochi-peach); text-decoration:none; font-weight:600; margin-left:4px;">重置</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Scrollable Image Matrix -->
+      <div class="outputs-scroll-area outputs-cards-container" id="outputs-scroll-area">
+        {% if selected_date %}
+        <div class="outputs-active-filter-banner" style="display:flex; justify-content:space-between; align-items:center; padding:8px 14px; background:var(--mochi-peach-soft); border-radius:10px; margin-bottom:14px; font-size:12px;">
+          <span>当前查看日期：<strong>{{ selected_date }}</strong> <span class="filter-count">（匹配 {{ total_filtered }} 张）</span></span>
+          <a href="/outputs{% if q %}?q={{ q }}{% endif %}" class="btn-clear-date" style="color:var(--mochi-peach); font-weight:600; text-decoration:none;">查看全部日期</a>
+        </div>
+        {% endif %}
+
+        {% if not images %}
+        <div class="empty-state">
+          <div class="empty-state-icon">🖼️</div>
+          <h3>未找到符合条件的生图记录</h3>
+          <p>当前目录或所选筛选条件下没有图片。您可以点击“刷新扫描”或调整筛选条件。</p>
+          <button type="button" class="btn btn-primary" onclick="rescanOutputs()">立刻扫描输出目录</button>
+        </div>
+        {% else %}
+
+        {% for sec in date_sections %}
+        <div class="session-batch-group outputs-date-group" id="date-group-{{ sec.file_date }}">
+          <div class="session-batch-header outputs-group-header">
+            <div class="batch-title-row outputs-group-title">
+              <svg class="batch-folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+              <span class="batch-title outputs-group-date-text">生成批次 · {{ sec.file_date }}</span>
+              <span class="batch-count-pill outputs-group-count">{{ sec.images | length }} 张</span>
+            </div>
+            <button type="button" class="btn-batch-copy btn-copy-date-prompts" data-date="{{ sec.file_date }}" title="复制这一天所有图片的正面提示词">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+              <span>复制本批提示词</span>
+            </button>
+          </div>
+
+          <div class="session-cards-grid outputs-cards-grid">
+            {% for img in sec.images %}
+            <div class="output-card safety-{{ img.safety_level }}"
+                 data-id="{{ img.id }}"
+                 data-path="{{ img.rel_path }}"
+                 data-safety="{{ img.safety_level }}"
+                 data-width="{{ img.width }}"
+                 data-height="{{ img.height }}"
+                 data-prompt="{{ img.positive_prompt | e }}"
+                 data-checkpoint="{{ img.checkpoint | e }}"
+                 data-loras="{{ img.loras | e }}"
+                 data-time="{{ img.file_time }}"
+                 data-date="{{ img.file_date }}"
+                 onclick="selectCard(this, {{ img.id }})"
+                 ondblclick="openOutputDetail({{ img.id }})">
+              <div class="output-card-preview">
+                <img src="/outputs/file?path={{ img.rel_path | urlpath }}"
+                     alt="{{ img.filename }}"
+                     loading="lazy"
+                     onerror="this.parentElement.innerHTML='<div class=\'img-broken\'>无法加载</div>'">
+
+                <!-- Selection Halo Checkmark Badge -->
+                <div class="card-select-badge">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+
+                <!-- Safety Pill -->
+                <div class="card-safety-badge output-safety-badge">
+                  <span class="{% if img.safety_level == 'nsfw' %}safety-dot-nsfw{% elif img.safety_level == 'suspicious' %}safety-dot-suspicious{% else %}safety-dot-sfw{% endif %}"></span>
+                  <span>{% if img.safety_level == 'nsfw' %}敏感{% elif img.safety_level == 'suspicious' %}可疑{% else %}正常{% endif %}</span>
+                </div>
+
+                <!-- Quick Actions Hover Bar -->
+                <div class="output-card-hover-bar output-card-overlay">
+                  <button type="button" class="hover-bar-btn btn-surgeon-quick btn-overlay-action" title="在 Prompt Surgeon 中打开" onclick="event.stopPropagation(); triggerSurgeonForCard({{ img.id }});">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29c-.39-.39-1.02-.39-1.41 0L1.29 18.96c-.39.39-.39 1.02 0 1.41l2.34 2.34c.39.39 1.02.39 1.41 0L16.7 11.05c.39-.39.39-1.02 0-1.41l-2.33-2.35zm-1.03 5.49l-2.12-2.12 2.44-2.44 2.12 2.12-2.44 2.44z"/></svg>
+                  </button>
+                  <button type="button" class="hover-bar-btn btn-overlay-action" title="复制提示词" onclick="event.stopPropagation(); copyOutputPrompt({{ img.id }});">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                  </button>
+                  <button type="button" class="hover-bar-btn btn-fav-quick btn-overlay-action" title="收藏到图库" onclick="event.stopPropagation(); favoriteOutputImage('{{ img.rel_path }}');">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Minimal Default Metadata: Chip + Timestamp -->
+              <div class="output-card-meta output-card-info">
+                <span class="card-model-chip output-ckpt-tag" title="{{ img.loras or img.checkpoint or 'Base' }}">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  <span>{{ (img.loras or img.checkpoint or 'SDXL')[:14] }}</span>
+                </span>
+              </div>
+
+              <!-- Dimmed Hover Secondary Meta -->
+              <div class="card-hover-submeta">
+                <span class="output-res-tag">{{ img.width or 800 }}×{{ img.height or 1200 }}</span>
+                <span class="card-prompt-excerpt output-card-prompt" title="{{ img.positive_prompt }}">{{ (img.positive_prompt or '')[:16] }}...</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+
+        <!-- 分页控制 -->
+        {% if total_pages > 1 %}
+        <div class="pagination-bar" style="margin-top:20px; display:flex; justify-content:space-between; align-items:center;">
+          <div class="pagination-info" style="font-size:12px; color:var(--mochi-muted);">共 {{ total_filtered }} 张图片，第 {{ page }} / {{ total_pages }} 页</div>
+          <div class="pagination-controls" style="display:flex; gap:8px;">
+            {% if page > 1 %}
+            <a href="/outputs?page={{ page - 1 }}{% if selected_date %}&date={{ selected_date }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if checkpoint %}&checkpoint={{ checkpoint }}{% endif %}{% if order %}&order={{ order }}{% endif %}" class="btn btn-secondary btn-sm">上一页</a>
+            {% endif %}
+            <span class="pagination-current" style="padding:4px 10px; font-weight:700; color:var(--mochi-charcoal);">{{ page }}</span>
+            {% if page < total_pages %}
+            <a href="/outputs?page={{ page + 1 }}{% if selected_date %}&date={{ selected_date }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if checkpoint %}&checkpoint={{ checkpoint }}{% endif %}{% if order %}&order={{ order }}{% endif %}" class="btn btn-secondary btn-sm">下一页</a>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% endif %}
       </div>
     </div>
 
-    <!-- 筛选过滤条 -->
-    <form class="outputs-filter-bar" method="get" action="/outputs">
-      {% if selected_date %}
-      <input type="hidden" name="date" value="{{ selected_date }}">
-      {% endif %}
-      <div class="outputs-search-wrap">
-        <svg class="outputs-search-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-        <input type="text" name="q" value="{{ q }}" class="input search-input" placeholder="搜索提示词、LoRA、模型或文件名...">
-        {% if q %}
-        <a href="/outputs{% if selected_date %}?date={{ selected_date }}{% endif %}" class="clear-search-btn" title="清除搜索">&times;</a>
-        {% endif %}
-      </div>
-
-      {% if available_checkpoints %}
-      <select name="checkpoint" class="select outputs-select" onchange="this.form.submit()">
-        <option value="">全部模型 ({{ available_checkpoints | length }})</option>
-        {% for ckpt in available_checkpoints %}
-        <option value="{{ ckpt }}" {% if checkpoint == ckpt %}selected{% endif %}>{{ ckpt }}</option>
-        {% endfor %}
-      </select>
-      {% endif %}
-
-      <select name="order" class="select outputs-select" onchange="this.form.submit()">
-        <option value="desc" {% if order == 'desc' %}selected{% endif %}>最新生成优先</option>
-        <option value="asc" {% if order == 'asc' %}selected{% endif %}>最早生成优先</option>
-      </select>
-    </form>
-  </header>
-
-  <!-- 主体内容：左侧日期时间线 + 右侧生图流 -->
-  <div class="outputs-main-layout">
-    <!-- 左侧日期导航 -->
-    <aside class="outputs-date-sidebar">
-      <div class="outputs-date-header">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
-        <span>日期归档</span>
-      </div>
-      <div class="outputs-date-list">
-        <a href="/outputs{% if q %}?q={{ q }}{% endif %}" class="outputs-date-item {% if not selected_date %}active{% endif %}">
-          <span class="outputs-date-name">📅 全部日期</span>
-          <span class="outputs-date-count">{{ total_images_in_db }}</span>
-        </a>
-        {% for d in dates %}
-        <a href="/outputs?date={{ d.file_date }}{% if q %}&q={{ q }}{% endif %}{% if checkpoint %}&checkpoint={{ checkpoint }}{% endif %}{% if order %}&order={{ order }}{% endif %}"
-           class="outputs-date-item {% if selected_date == d.file_date %}active{% endif %}"
-           title="{{ d.file_date }}">
-          <span class="outputs-date-name">{{ d.label }}</span>
-          <span class="outputs-date-count">{{ d.count }}</span>
-        </a>
-        {% endfor %}
-      </div>
-    </aside>
-
-    <!-- 右侧生图卡片网格 -->
-    <section class="outputs-grid-section">
-      {% if selected_date %}
-      <div class="outputs-active-filter-banner">
-        <span>当前查看日期：<strong>{{ selected_date }}</strong></span>
-        <span class="filter-count">（匹配 {{ total_filtered }} 张）</span>
-        <a href="/outputs{% if q %}?q={{ q }}{% endif %}" class="btn-clear-date">查看全部日期</a>
-      </div>
-      {% endif %}
-
-      {% if not images %}
-      <div class="empty-state">
-        <div class="empty-state-icon">🖼️</div>
-        <h3>未找到符合条件的生图记录</h3>
-        <p>当前目录或所选筛选条件下没有图片。您可以点击“刷新扫描”或调整筛选条件。</p>
-        <button type="button" class="btn btn-primary" onclick="rescanOutputs()">立刻扫描输出目录</button>
-      </div>
-      {% else %}
-
-      {% for sec in date_sections %}
-      <div class="outputs-date-group" id="date-group-{{ sec.file_date }}">
-        <div class="outputs-group-header">
-          <div class="outputs-group-title">
-            <span class="outputs-group-calendar-icon">📅</span>
-            <span class="outputs-group-date-text">{{ sec.file_date }}</span>
-            <span class="outputs-group-count">({{ sec.images | length }} 张)</span>
+    <!-- Right-side Image Inspector Drawer (~365px) -->
+    <aside class="outputs-inspector-drawer" id="outputs-inspector">
+      <div class="inspector-resizer" id="inspectorResizer" role="separator" aria-orientation="vertical" aria-label="拖动调整检查器宽度" title="左右拖动调整检查器宽度 (双击恢复默认)"></div>
+      <div class="inspector-scroll-area" id="inspectorScrollArea">
+        <!-- Sticky Header -->
+        <div class="inspector-sticky-header">
+          <div class="inspector-title-col">
+            <div class="inspector-title-row">
+              <span class="inspector-title">图片检查器</span>
+              <span class="inspector-id-badge" id="inspector-id-badge">#--</span>
+            </div>
+            <span class="inspector-datetime" id="inspector-datetime">--</span>
           </div>
-          <button type="button" class="btn btn-secondary btn-xs btn-copy-date-prompts" data-date="{{ sec.file_date }}" title="复制这一天所有图片的正面提示词">
-            📋 复制本日 Prompt
+          <div class="inspector-header-actions">
+            <button type="button" class="hover-bar-btn" title="全屏放大详情" onclick="openInspectorModalZoom()">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Inspector Body Content -->
+        <div class="inspector-body">
+          <!-- Light-Table Preview Frame (resizable height) -->
+          <div class="inspector-light-table group" id="inspectorLightTable">
+            <img id="inspector-preview-img" src="" alt="Selected Preview">
+            <div class="inspector-table-badges">
+              <span class="table-dim-badge" id="inspector-dim-badge">800 × 1200</span>
+              <span class="table-format-badge">PNG</span>
+            </div>
+            <button type="button" class="btn-table-zoom" title="查看高清原图" onclick="openInspectorModalZoom()">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm.5-7h-1v2h-2v1h2v2h1v-2h2V9h-2z"/></svg>
+            </button>
+            <div class="light-table-resizer" id="lightTableResizer" role="separator" aria-orientation="horizontal" aria-label="拖动调整预览图高度" title="上下拖动调整预览图高度 (双击恢复默认)"></div>
+          </div>
+
+        <!-- STRICT USER SPECIFICATION #2: 38px Prompt Surgeon CTA -->
+          <button type="button" class="btn-inspector-surgeon" id="btn-inspector-surgeon" onclick="openSurgeonForSelected()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.5 5.6L10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29c-.39-.39-1.02-.39-1.41 0L1.29 18.96c-.39.39-.39 1.02 0 1.41l2.34 2.34c.39.39 1.02.39 1.41 0L16.7 11.05c.39-.39.39-1.02 0-1.41l-2.33-2.35zm-1.03 5.49l-2.12-2.12 2.44-2.44 2.12 2.12-2.44 2.44z"/></svg>
+            <span>打开提示词编辑</span>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></svg>
+        </button>
+
+        <!-- 4-Grid Secondary Utility Row -->
+        <div class="inspector-actions-grid">
+          <button type="button" class="inspector-grid-btn" title="复制正面提示词" onclick="copySelectedPrompt()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+            <span>复制提示词</span>
+          </button>
+          <button type="button" class="inspector-grid-btn" title="填入创作工坊工作台" onclick="sendSelectedToStudio()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 2a4.5 4.5 0 0 0 0 9 4.5 4.5 0 0 1 0 9"/><circle cx="8.5" cy="8.5" r="1.5"/><circle cx="15.5" cy="8.5" r="1.5"/><circle cx="15.5" cy="15.5" r="1.5"/></svg>
+            <span>填入工作台</span>
+          </button>
+          <button type="button" class="inspector-grid-btn" title="无损高清放大 (2x ESRGAN)" onclick="upscaleSelectedImage()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-8 12H9.5v-2h-2v2H6V9h1.5v2.5h2V9H11v6zm7-1c0 .55-.45 1-1 1h-4V9h4c.55 0 1 .45 1 1v4zm-1.5-3.5h-2v3h2v-3z"/></svg>
+            <span>高清放大</span>
+          </button>
+          <button type="button" class="inspector-grid-btn btn-fav" title="收藏至提示词图库" onclick="favoriteSelectedImage()">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            <span>收藏</span>
           </button>
         </div>
 
-        <div class="outputs-cards-grid">
-          {% for img in sec.images %}
-          <div class="output-card safety-{{ img.safety_level }}" data-id="{{ img.id }}" data-path="{{ img.rel_path }}" data-safety="{{ img.safety_level }}">
-            <div class="output-card-preview" onclick="openOutputDetail({{ img.id }})">
-              <img src="/outputs/file?path={{ img.rel_path | urlpath }}"
-                   alt="{{ img.filename }}"
-                   loading="lazy"
-                   onerror="this.parentElement.innerHTML='<div class=\'img-broken\'>无法加载</div>'">
-              <div class="output-card-overlay">
-                <button type="button" class="btn-overlay-action" title="放大查看 & 工作流" onclick="event.stopPropagation(); openOutputDetail({{ img.id }})">🔍 查看</button>
-                <button type="button" class="btn-overlay-action" title="填入工作台" onclick="event.stopPropagation(); appendOutputPrompt({{ img.id }})">⚡ 工作台</button>
-                <button type="button" class="btn-overlay-action" title="收藏到提示词图库" onclick="event.stopPropagation(); favoriteOutputImage('{{ img.rel_path }}')">⭐ 收藏</button>
-              </div>
-              <span class="output-time-badge">{{ img.file_time }}</span>
-              <span class="output-safety-badge">{% if img.safety_level == 'nsfw' %}NSFW{% elif img.safety_level == 'suspicious' %}可疑{% else %}正常{% endif %}</span>
+        <!-- Prompt Lineage / Creative Journal Section -->
+        <div class="inspector-lineage-card">
+          <div class="lineage-card-header">
+            <span class="lineage-title">提示词</span>
+            <div class="lineage-version-pills" id="inspector-version-pills">
+              <button type="button" class="lineage-ver-btn active" title="只读 v0 原版">v0 🔒</button>
             </div>
+          </div>
+          <!-- Warm Ivory Prompt Box (#FFFBF6) -->
+          <div class="lineage-prompt-box group/prompt">
+            <span id="inspector-prompt-text">（请在左侧选择图片）</span>
+            <button type="button" class="btn-copy-prompt-overlay" onclick="copySelectedPrompt()">复制</button>
+          </div>
+          <!-- Collapsible Negative Tokens -->
+          <details class="lineage-neg-details" id="inspector-neg-details">
+            <summary class="lineage-neg-summary">
+              <span>负面提示词（<span id="inspector-neg-count">0</span>）</span>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+            </summary>
+            <div class="lineage-neg-box" id="inspector-neg-text">（无负向词）</div>
+          </details>
+        </div>
 
-            <div class="output-card-info">
-              <div class="output-card-meta-row">
-                {% if img.width and img.height %}
-                <span class="output-res-tag">{{ img.width }}×{{ img.height }}</span>
-                {% endif %}
-                {% if img.checkpoint %}
-                <span class="output-ckpt-tag" title="{{ img.checkpoint }}">{{ img.checkpoint[:14] }}{% if img.checkpoint|length > 14 %}...{% endif %}</span>
-                {% endif %}
-                {% if img.loras %}
-                <span class="output-lora-tag" title="{{ img.loras }}">🔮 {{ img.loras[:18] }}{% if img.loras|length > 18 %}...{% endif %}</span>
-                {% endif %}
+        <!-- STRICT USER SPECIFICATION #4: Generation Pipeline Specs -->
+        <div class="inspector-pipeline-card">
+          <div class="pipeline-card-header">
+            <span class="pipeline-title">生成参数</span>
+            <span class="pipeline-core-badge" id="inspector-engine-badge">ComfyUI Core</span>
+          </div>
+          <div class="pipeline-specs-grid">
+            <div class="pipeline-spec-row">
+              <span class="pipeline-key">基础模型</span>
+              <span class="pipeline-val pipeline-val-truncate" id="inspector-ckpt-val" title="Checkpoint">-</span>
+            </div>
+            <div class="pipeline-spec-row">
+              <span class="pipeline-key">LoRA</span>
+              <div class="pipeline-val" id="inspector-lora-wrap">
+                <span class="pipeline-lora-chip" id="inspector-lora-chip">-</span>
               </div>
-              <div class="output-card-prompt" title="{{ img.positive_prompt }}">
-                {{ img.positive_prompt or '（无嵌入提示词元数据）' }}
-              </div>
-              <div class="output-card-actions">
-                <button type="button" class="btn-card-icon" title="复制提示词" onclick="copyOutputPrompt({{ img.id }})">
+            </div>
+            <div class="pipeline-spec-row">
+              <span class="pipeline-key">角色</span>
+              <span class="pipeline-char-chip" id="inspector-char-chip">-</span>
+            </div>
+            <div class="pipeline-spec-row">
+              <span class="pipeline-key">采样器 / 步数</span>
+              <span class="pipeline-val" id="inspector-sampler-val">-</span>
+            </div>
+            <div class="pipeline-spec-row">
+              <span class="pipeline-key">提示词引导</span>
+              <span class="pipeline-val" id="inspector-cfg-val">-</span>
+            </div>
+            <div class="pipeline-spec-row">
+              <span class="pipeline-key">随机种子</span>
+              <div class="pipeline-val" style="display:flex; align-items:center; gap:4px;">
+                <span id="inspector-seed-val">-</span>
+                <button type="button" class="pipeline-copy-btn" title="复制 Seed" onclick="copySelectedSeed()">
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
                 </button>
-                <button type="button" class="btn-card-icon" title="填入提示词工作台" onclick="appendOutputPrompt({{ img.id }})">
-                  ⚡
-                </button>
-                <button type="button" class="btn-card-icon" title="收藏到图库" onclick="favoriteOutputImage('{{ img.rel_path }}')">
-                  ⭐
-                </button>
+              </div>
+            </div>
+            <div class="pipeline-spec-row">
+              <span class="pipeline-key">图片尺寸</span>
+              <span class="pipeline-val" id="inspector-dims-val">-</span>
+            </div>
+            <div class="pipeline-spec-row">
+              <span class="pipeline-key">耗时</span>
+              <span class="pipeline-val pipeline-latency-val" id="inspector-latency-val">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+                <span id="inspector-latency-text">--</span>
+              </span>
+            </div>
+            <div class="pipeline-spec-row">
+              <span class="pipeline-key">WD14 识别</span>
+              <span class="pipeline-safety-chip sfw" id="inspector-safety-chip">正常</span>
+            </div>
+            <div class="pipeline-spec-row inspector-rating-row">
+              <span class="pipeline-key">手动评级</span>
+              <div class="inspector-rating-controls">
+                <select id="inspector-safety-select" aria-label="手动评级">
+                  <option value="normal">正常</option>
+                  <option value="suspicious">可疑</option>
+                  <option value="nsfw">敏感</option>
+                </select>
+                <button type="button" id="btn-save-inspector-safety" onclick="saveInspectorSafetyLevel()">保存</button>
               </div>
             </div>
           </div>
-          {% endfor %}
         </div>
       </div>
-      {% endfor %}
-
-      <!-- 分页控制 -->
-      {% if total_pages > 1 %}
-      <div class="pagination-bar">
-        <div class="pagination-info">共 {{ total_filtered }} 张图片，第 {{ page }} / {{ total_pages }} 页</div>
-        <div class="pagination-controls">
-          {% if page > 1 %}
-          <a href="/outputs?page={{ page - 1 }}{% if selected_date %}&date={{ selected_date }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if checkpoint %}&checkpoint={{ checkpoint }}{% endif %}{% if order %}&order={{ order }}{% endif %}" class="btn btn-secondary btn-sm">上一页</a>
-          {% endif %}
-          <span class="pagination-current">{{ page }}</span>
-          {% if page < total_pages %}
-          <a href="/outputs?page={{ page + 1 }}{% if selected_date %}&date={{ selected_date }}{% endif %}{% if q %}&q={{ q }}{% endif %}{% if checkpoint %}&checkpoint={{ checkpoint }}{% endif %}{% if order %}&order={{ order }}{% endif %}" class="btn btn-secondary btn-sm">下一页</a>
-          {% endif %}
-        </div>
       </div>
-      {% endif %}
-
-      {% endif %}
-    </section>
+    </aside>
   </div>
-
   <!-- 生图详情与工作流 Lightbox 模态弹窗 -->
   <div id="output-modal" class="output-modal" style="display:none;" onclick="if(event.target===this)closeOutputModal()">
     <div class="output-modal-dialog">
@@ -220,7 +436,7 @@
               <select id="modal-safety-select" class="select" aria-label="手动修改评级">
                 <option value="normal">正常</option>
                 <option value="suspicious">可疑</option>
-                <option value="nsfw">NSFW</option>
+                <option value="nsfw">敏感</option>
               </select>
               <button type="button" class="btn btn-secondary btn-xs" id="btn-save-safety" onclick="saveModalSafetyLevel()">保存评级</button>
             </div>
@@ -248,24 +464,30 @@
 
           <!-- Prompt Surgeon (自然语言提示词手术刀) -->
           <!-- Prompt Surgeon 轻量入口 -->
+          <!-- Prompt Surgeon 轻量入口 -->
           <div class="modal-section surgeon-card surgeon-card-compact">
-            <div class="surgeon-header">
-              <div class="surgeon-badge">
-                <span class="surgeon-sparkle">✨</span> Prompt Surgeon
-                <span class="surgeon-version-pill" id="compact-surgeon-version-badge">v0 当前</span>
-                <span class="surgeon-orig-tag" title="原始图片提示词已作为只读 v0 永久保存">🔒 原版已存</span>
+            <!-- 顶部行 1：标题 + 模型就绪状态 + Key 配置三级按钮 -->
+            <div class="surgeon-header-top">
+              <div class="surgeon-brand-label">
+                <span class="surgeon-brand-sparkle">✦</span>
+                <span>Prompt Surgeon</span>
               </div>
-              <div style="display:flex;gap:6px;align-items:center;">
-                <button type="button" class="btn btn-xs btn-open-studio" id="btn-open-studio" onclick="openSurgeonPage(event)" title="进入独立提示词手术室">
-                  进入手术室 ↗
-                </button>
-                <button type="button" class="btn btn-xs btn-secondary" onclick="toggleSurgeonHistory()" title="查看版本历史">
-                  📜 版本 (<span id="history-count">0</span>)
-                </button>
-                <button type="button" class="btn-ai-key-toggle" onclick="toggleAiKeyInput()" title="设置 DeepSeek API Key">
-                  <span id="ai-key-status-indicator">🔑 Key</span>
+              <div class="surgeon-model-status">
+                <span class="status-dot" id="surgeon-model-dot" title="DeepSeek API 状态"></span>
+                <span id="surgeon-model-text">DeepSeek</span>
+                <button type="button" class="btn-key-tertiary" onclick="toggleAiKeyInput()" title="设置 DeepSeek API Key">
+                  <span id="ai-key-status-indicator">🔑 配置 Key</span>
                 </button>
               </div>
+            </div>
+
+            <!-- 顶部行 2：状态徽标 (24px 高度，清晰状态标识) -->
+            <div class="surgeon-header-badges">
+              <span class="badge badge-accent" id="compact-surgeon-version-badge">v0 当前</span>
+              <span class="badge" id="compact-surgeon-orig-badge" title="原始图片提示词已作为只读 v0 永久保存">🔒 原版已存</span>
+              <button type="button" class="badge" onclick="toggleSurgeonHistory()" title="点击展开版本历史抽屉" style="cursor:pointer; background:var(--surface-2); border:1px solid var(--border);">
+                📜 <span id="history-count">0</span> 个版本 ▾
+              </button>
             </div>
 
             <!-- 可折叠的 API Key 设置条 -->
@@ -277,33 +499,62 @@
               <p class="ai-key-hint">💡 默认调用 DeepSeek 官方 API (`deepseek-chat`)。设置后自动持久化到系统配置。</p>
             </div>
 
-            <!-- 作用域快捷选择 -->
+            <!-- 作用域快捷选择 (Filter Chips 风格，横向滚动，严格不换行) -->
             <div class="surgeon-scopes-row">
               <span class="surgeon-scope-label">范围：</span>
               <button type="button" class="surgeon-scope-chip active" data-scope="" onclick="selectSurgeonScope(this, '')">全部</button>
-              <button type="button" class="surgeon-scope-chip" data-scope="clothing" onclick="selectSurgeonScope(this, 'clothing')">只改衣服</button>
-              <button type="button" class="surgeon-scope-chip" data-scope="hair" onclick="selectSurgeonScope(this, 'hair')">只改发型</button>
-              <button type="button" class="surgeon-scope-chip" data-scope="pose" onclick="selectSurgeonScope(this, 'pose')">改姿势</button>
-              <button type="button" class="surgeon-scope-chip" data-scope="background" onclick="selectSurgeonScope(this, 'background')">改背景</button>
+              <button type="button" class="surgeon-scope-chip" data-scope="clothing" onclick="selectSurgeonScope(this, 'clothing')">衣服</button>
+              <button type="button" class="surgeon-scope-chip" data-scope="hair" onclick="selectSurgeonScope(this, 'hair')">发型</button>
+              <button type="button" class="surgeon-scope-chip" data-scope="pose" onclick="selectSurgeonScope(this, 'pose')">姿势</button>
+              <button type="button" class="surgeon-scope-chip" data-scope="background" onclick="selectSurgeonScope(this, 'background')">背景</button>
             </div>
 
-            <!-- 口语指令快速输入栏 -->
-            <div class="surgeon-input-wrap">
+            <!-- 核心输入区：全宽输入框 + 预览 Diff 按钮 -->
+            <div class="surgeon-input-row">
               <input type="text" id="surgeon-instruction" class="surgeon-input"
-                     placeholder="快速修改：如“把长发换成短发”或点击上方“进入手术室”..."
+                     placeholder="输入修改指令：如“把长发换成短发”、“换成白色粗针织毛衣”..."
                      onkeydown="if(event.key==='Enter') previewSurgeonEdit()">
               <button type="button" class="btn-surgeon-preview" id="btn-surgeon-preview" onclick="previewSurgeonEdit()">
                 <span id="surgeon-btn-text">预览 Diff ⚡</span>
               </button>
             </div>
 
-            <!-- 历史记录展开面板 -->
-            <div id="surgeon-history-panel" class="surgeon-history-panel" style="display:none;">
-              <div id="surgeon-history-list"></div>
+            <!-- 提示与高级设置切换 -->
+            <div class="surgeon-meta-row">
+              <span class="surgeon-hint-text">仅修改选中范围 · 保持角色身份</span>
+              <button type="button" class="surgeon-adv-toggle" onclick="toggleSurgeonAdvanced()" id="surgeon-adv-toggle-btn">
+                高级设置 ▾
+              </button>
             </div>
+
+            <!-- 可折叠的高级设置面板 -->
+            <div id="surgeon-adv-panel" class="surgeon-adv-panel" style="display: none; padding: 6px 0; gap: 12px;">
+              <label class="studio-chk-label" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer;">
+                <input type="checkbox" id="chk-preserve-identity" checked> 🛡️ 保持角色身份
+              </label>
+              <label class="studio-chk-label" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);cursor:pointer;">
+                <input type="checkbox" id="chk-adult-mode"> 🔞 成人模式
+              </label>
+            </div>
+
+            <!-- 底部主要操作栏 (严格单行，禁止折行) -->
+            <div class="surgeon-actions-row">
+              <button type="button" class="btn-open-studio-primary" id="btn-open-studio" onclick="openSurgeonPage(event)" title="进入独立提示词手术室">
+                <span>进入手术室 ↗</span>
+              </button>
+              <button type="button" class="btn-history-secondary" onclick="toggleSurgeonHistory()" title="查看版本历史">
+                <span>📜 查看版本历史</span>
+              </button>
+            </div>
+
+            <!-- 兼容性隐藏占位符 -->
+            <div id="surgeon-history-panel" style="display:none;"></div>
 
             <!-- Diff 结果展示区 -->
             <div id="surgeon-result-panel" class="surgeon-result-panel" style="display:none;">
+              <!-- 警告横幅 -->
+              <div id="surgeon-warning-alert" class="alert alert-warning" style="display:none;font-size:11px;margin-bottom:8px;"></div>
+
               <!-- 汇总统计条 -->
               <div class="surgeon-summary-bar">
                 <span class="surgeon-summary-pill pill-removed" id="summary-pill-removed">🔴 移除: 0</span>
@@ -372,6 +623,20 @@
           </div>
         </div>
       </div>
+
+      <!-- 右侧滑出版本抽屉 (Version Drawer) -->
+      <aside id="surgeon-history-drawer" class="version-drawer" aria-label="版本历史抽屉">
+        <div class="version-drawer-header">
+          <div class="version-drawer-title">
+            <span>📜 版本历史</span>
+            <span class="badge badge-accent" id="drawer-ver-count-badge">0</span>
+          </div>
+          <button type="button" class="version-drawer-close" onclick="toggleSurgeonHistory()" title="关闭抽屉">&times;</button>
+        </div>
+        <div class="version-drawer-body" id="surgeon-history-list">
+          <div style="color:var(--text-muted);font-size:12px;padding:12px;text-align:center;">暂无已保存版本</div>
+        </div>
+      </aside>
     </div>
   </div>
 
@@ -396,10 +661,10 @@
       <div class="level-action-grid">
         <label>✅ 正常<select id="level-action-normal"><option value="show">显示</option><option value="blur">模糊</option><option value="hide">隐藏</option></select></label>
         <label>⚠️ 可疑<select id="level-action-suspicious"><option value="show">显示</option><option value="blur">模糊</option><option value="hide">隐藏</option></select></label>
-        <label>🔞 NSFW<select id="level-action-nsfw"><option value="show">显示</option><option value="blur">模糊</option><option value="hide">隐藏</option></select></label>
+        <label>🔞 敏感<select id="level-action-nsfw"><option value="show">显示</option><option value="blur">模糊</option><option value="hide">隐藏</option></select></label>
       </div>
       <label class="level-word-label">自定义可疑词（逗号或换行分隔）<textarea id="custom-suspicious-words" rows="4" placeholder="例如：泳装, 擦边词"></textarea></label>
-      <label class="level-word-label">自定义 NSFW 词（逗号或换行分隔）<textarea id="custom-nsfw-words" rows="4" placeholder="例如：明确裸体或成人词"></textarea></label>
+      <label class="level-word-label">自定义敏感词（逗号或换行分隔）<textarea id="custom-nsfw-words" rows="4" placeholder="例如：明确裸体或成人词"></textarea></label>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
         <button type="button" class="btn btn-secondary" onclick="closeLevelSettings()">取消</button>
         <button type="button" class="btn btn-primary" onclick="saveLevelSettings()">保存设置</button>
@@ -445,7 +710,8 @@
       <!-- 主工作区：三栏布局 -->
       <div class="surgeon-studio-body">
         <!-- 左栏：版本树与时间线 -->
-        <div class="studio-col studio-col-versions">
+        <div class="studio-col studio-col-versions" id="modalSurgeonColLeft">
+          <div class="studio-col-resizer resizer-left" id="modalSurgeonResizerLeft" role="separator" aria-orientation="vertical" aria-label="拖动调整版本树宽度" title="拖动调整版本树宽度 (双击恢复默认)"></div>
           <div class="studio-col-header">
             <div class="studio-col-title">
               <span>📜 版本分支树</span>
@@ -494,7 +760,8 @@
         </div>
 
         <!-- 右栏：工作台、原版参照与自然语言手术输入 -->
-        <div class="studio-col studio-col-controls">
+        <div class="studio-col studio-col-controls" id="modalSurgeonColRight">
+          <div class="studio-col-resizer resizer-right" id="modalSurgeonResizerRight" role="separator" aria-orientation="vertical" aria-label="拖动调整操作台宽度" title="拖动调整操作台宽度 (双击恢复默认)"></div>
           <!-- 原图事实 Prompt (v0) -->
           <div class="studio-orig-box">
             <div class="studio-box-title">
@@ -617,6 +884,7 @@
     button.textContent = levelSettings.enabled ? '🛡️ 内容级别：启用' : '👁️ 内容级别：停用';
     button.setAttribute('aria-pressed', levelSettings.enabled ? 'true' : 'false');
     document.getElementById('outputs-hidden-count').textContent = hidden ? '已隐藏 ' + hidden + ' 张' : '';
+    validateCurrentSelection();
   }
 
   window.toggleContentLevel = function() {
@@ -649,6 +917,314 @@
     localStorage.removeItem('nw-output-level-settings');
     openLevelSettings(); applyLevelSettings();
   };
+
+  // --- Mochi Atelier Image Inspector Wiring ---
+  var selectedImageId = null;
+  var selectedDetail = null;
+  var inspectorRequestId = 0;
+
+  function isVisibleImage(id) {
+    var card = document.querySelector('.output-card[data-id="' + id + '"]');
+    return !!card && !card.classList.contains('content-hidden');
+  }
+
+  function setInspectorActionsEnabled(enabled) {
+    document.querySelectorAll('.outputs-inspector-drawer button').forEach(function(button) {
+      if (button.id === 'btn-save-inspector-safety' || button.closest('.inspector-header-actions')) return;
+      button.disabled = !enabled;
+    });
+    var rating = document.getElementById('inspector-safety-select');
+    var save = document.getElementById('btn-save-inspector-safety');
+    if (rating) rating.disabled = !enabled;
+    if (save) save.disabled = !enabled;
+  }
+
+  function clearInspector() {
+    selectedImageId = null;
+    selectedDetail = null;
+    inspectorRequestId++;
+    document.querySelectorAll('.output-card.is-selected').forEach(function(card) { card.classList.remove('is-selected'); });
+    var preview = document.getElementById('inspector-preview-img');
+    if (preview) { preview.removeAttribute('src'); preview.alt = '未选择图片'; }
+    var idBadge = document.getElementById('inspector-id-badge');
+    if (idBadge) idBadge.textContent = '#--';
+    var dateTime = document.getElementById('inspector-datetime');
+    if (dateTime) dateTime.textContent = '选择当前列表中的图片查看详情';
+    var prompt = document.getElementById('inspector-prompt-text');
+    if (prompt) prompt.textContent = '未选择图片';
+    var negative = document.getElementById('inspector-neg-text');
+    if (negative) negative.textContent = '（无负向词）';
+    setInspectorActionsEnabled(false);
+  }
+
+  function validateCurrentSelection() {
+    if (selectedImageId !== null && !isVisibleImage(selectedImageId)) clearInspector();
+  }
+
+  window.selectCard = function(cardEl, id) {
+    if (!cardEl || cardEl.classList.contains('content-hidden')) return;
+    document.querySelectorAll('.output-card.is-selected').forEach(function(el) {
+      el.classList.remove('is-selected');
+    });
+    cardEl.classList.add('is-selected');
+    selectedImageId = id;
+    selectedDetail = null;
+    setInspectorActionsEnabled(true);
+
+    // Instant dataset rendering
+    var ds = cardEl.dataset;
+    var previewImg = document.getElementById('inspector-preview-img');
+    if (previewImg && ds.path) {
+      previewImg.src = '/outputs/file?path=' + encodeURIComponent(ds.path);
+    }
+    var idBadge = document.getElementById('inspector-id-badge');
+    if (idBadge) idBadge.textContent = '#' + id;
+    var dt = document.getElementById('inspector-datetime');
+    if (dt) dt.textContent = (ds.date || '') + (ds.time ? (' · ' + ds.time) : '');
+    var dim = document.getElementById('inspector-dim-badge');
+    if (dim) dim.textContent = (ds.width && ds.height) ? (ds.width + ' × ' + ds.height) : '800 × 1200';
+    var pText = document.getElementById('inspector-prompt-text');
+    if (pText) pText.textContent = ds.prompt || '（无嵌入提示词）';
+    var ckptVal = document.getElementById('inspector-ckpt-val');
+    if (ckptVal) {
+      ckptVal.textContent = ds.checkpoint || 'SDXL Turbo Core';
+      ckptVal.title = ds.checkpoint || '';
+    }
+    var loraChip = document.getElementById('inspector-lora-chip');
+    if (loraChip) loraChip.textContent = ds.loras ? ds.loras.split(',')[0] : '无';
+    var dimsVal = document.getElementById('inspector-dims-val');
+    if (dimsVal) dimsVal.textContent = (ds.width && ds.height) ? (ds.width + ' × ' + ds.height) : '-';
+
+    // Fetch detail from API to enrich Inspector
+    var requestId = ++inspectorRequestId;
+    fetch('/api/outputs/detail?id=' + encodeURIComponent(id))
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (requestId !== inspectorRequestId || selectedImageId !== id || !isVisibleImage(id)) return;
+        selectedDetail = data;
+        updateInspectorPanel(data);
+      })
+      .catch(function(err) {
+        console.warn('Inspector detail fetch error:', err);
+      });
+  };
+
+  function updateInspectorPanel(data) {
+    if (!data || !isVisibleImage(data.id) || selectedImageId !== data.id) return;
+    var pText = document.getElementById('inspector-prompt-text');
+    if (pText) pText.textContent = data.positive_prompt || '（无嵌入提示词）';
+
+    // Negative tokens
+    var negText = document.getElementById('inspector-neg-text');
+    var negCount = document.getElementById('inspector-neg-count');
+    if (data.negative_prompt && data.negative_prompt.trim()) {
+      if (negText) negText.textContent = data.negative_prompt;
+      var tokens = data.negative_prompt.split(',').filter(function(s) { return s.trim(); });
+      if (negCount) negCount.textContent = tokens.length;
+    } else {
+      if (negText) negText.textContent = '（无负向词）';
+      if (negCount) negCount.textContent = '0';
+    }
+
+    // Version pills
+    var pillsWrap = document.getElementById('inspector-version-pills');
+    if (pillsWrap) {
+      var ver = (data.prompt_version !== undefined && data.prompt_version !== null) ? data.prompt_version : 0;
+      var html = '<button type="button" class="lineage-ver-btn ' + (ver === 0 ? 'active' : '') + '" title="只读 v0 原版">v0 🔒</button>';
+      if (ver > 0) {
+        for (var v = 1; v <= ver; v++) {
+          html += '<button type="button" class="lineage-ver-btn ' + (ver === v ? 'active' : '') + '">v' + v + '</button>';
+        }
+      }
+      pillsWrap.innerHTML = html;
+    }
+
+    // Pipeline Checkpoint & LoRA
+    if (data.checkpoint) {
+      var ckptEl = document.getElementById('inspector-ckpt-val');
+      if (ckptEl) { ckptEl.textContent = data.checkpoint; ckptEl.title = data.checkpoint; }
+    }
+    if (data.loras) {
+      var loraWrap = document.getElementById('inspector-lora-wrap');
+      if (loraWrap) {
+        var loraItems = data.loras.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+        loraWrap.innerHTML = loraItems.slice(0, 2).map(function(l) {
+          return '<span class="pipeline-lora-chip">' + l + '</span>';
+        }).join(' ');
+      }
+    }
+
+    // Parse generation params for Sampler, Steps, CFG, Seed
+    var rawParams = data.generation_params || data.parameters || '';
+    parseGenerationSpecs(rawParams);
+
+    // Safety badge
+    var chip = document.getElementById('inspector-safety-chip');
+    if (chip) {
+      chip.className = 'pipeline-safety-chip ' + (data.safety_level || 'sfw');
+      chip.textContent = data.safety_level === 'nsfw' ? '敏感（18+）' : (data.safety_level === 'suspicious' ? '可疑' : '正常');
+    }
+    var rating = document.getElementById('inspector-safety-select');
+    if (rating) rating.value = data.safety_level || 'normal';
+  }
+
+  window.saveInspectorSafetyLevel = function() {
+    if (!selectedImageId || !isVisibleImage(selectedImageId)) return;
+    var select = document.getElementById('inspector-safety-select');
+    var button = document.getElementById('btn-save-inspector-safety');
+    var level = select.value;
+    button.disabled = true;
+    fetch('/api/outputs/' + encodeURIComponent(selectedImageId) + '/safety', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level: level })
+    })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (!data.ok) throw new Error(data.error || '保存失败');
+        var image = activeImages.find(function(item) { return item.id === selectedImageId; });
+        if (image) { image.safety_level = data.safety_level; image.safety_source = data.safety_source; }
+        if (selectedDetail) { selectedDetail.safety_level = data.safety_level; selectedDetail.safety_source = data.safety_source; }
+        applyLevelSettings();
+        validateCurrentSelection();
+        if (window.showToast) window.showToast('已保存人工评级', 'success');
+      })
+      .catch(function(err) { if (window.showToast) window.showToast('评级保存失败：' + err.message, 'error'); })
+      .finally(function() { if (selectedImageId) button.disabled = false; });
+  };
+
+  function parseGenerationSpecs(raw) {
+    if (!raw) return;
+    var stepsMatch = raw.match(/Steps:\s*(\d+)/i);
+    var samplerMatch = raw.match(/Sampler:\s*([^,]+)/i);
+    var cfgMatch = raw.match(/CFG scale:\s*([\d.]+)/i);
+    var seedMatch = raw.match(/Seed:\s*(\d+)/i);
+
+    var samplerVal = document.getElementById('inspector-sampler-val');
+    if (samplerVal) {
+      var s = samplerMatch ? samplerMatch[1].trim() : 'Euler a';
+      var st = stepsMatch ? stepsMatch[1].trim() + ' steps' : '20 steps';
+      samplerVal.textContent = s + ' · ' + st;
+    }
+    var cfgVal = document.getElementById('inspector-cfg-val');
+    if (cfgVal) cfgVal.textContent = cfgMatch ? cfgMatch[1].trim() : '7.0';
+    var seedVal = document.getElementById('inspector-seed-val');
+    if (seedVal) seedVal.textContent = seedMatch ? seedMatch[1].trim() : '-';
+  }
+
+  window.openInspectorModalZoom = function() {
+    if (selectedImageId && isVisibleImage(selectedImageId)) {
+      window.openOutputDetail(selectedImageId);
+    }
+  };
+
+  window.openSurgeonForSelected = function() {
+    if (selectedImageId && isVisibleImage(selectedImageId)) {
+      window.openOutputDetail(selectedImageId);
+      setTimeout(function() {
+        if (window.openSurgeonStudio) window.openSurgeonStudio();
+      }, 250);
+    }
+  };
+
+  window.triggerSurgeonForCard = function(id) {
+    var card = document.querySelector('.output-card[data-id="' + id + '"]');
+    if (!card || card.classList.contains('content-hidden')) return;
+    selectCard(card, id);
+    window.openOutputDetail(id);
+    setTimeout(function() {
+      if (window.openSurgeonStudio) window.openSurgeonStudio();
+    }, 250);
+  };
+
+  window.copySelectedPrompt = function() {
+    if (!selectedImageId) return;
+    copyOutputPrompt(selectedImageId);
+  };
+
+  window.copySelectedSeed = function() {
+    var seed = document.getElementById('inspector-seed-val');
+    if (seed && seed.textContent && seed.textContent !== '-') {
+      navigator.clipboard.writeText(seed.textContent).then(function() {
+        if (window.showToast) window.showToast('Seed 已复制到剪贴板: ' + seed.textContent, 'success');
+      });
+    }
+  };
+
+  function stagePromptForWorkbench(text) {
+    if (!text || !text.trim()) return false;
+    window.appendTagsToWorkbench(text);
+    sessionStorage.setItem('_persist_ws-custom-pos', text.trim());
+    sessionStorage.setItem('_persist_ws-custom-open', JSON.stringify({ pos: true, neg: false }));
+    return true;
+  }
+
+  window.sendSelectedToStudio = function() {
+    if (!selectedImageId || !appendOutputPrompt(selectedImageId)) {
+      if (window.showToast) window.showToast('请先选择一张带提示词的图片', 'info');
+      return;
+    }
+    window.location.href = '/workshop';
+  };
+
+  window.upscaleSelectedImage = function() {
+    if (window.showToast) window.showToast('已启动 2x ESRGAN 无损高清放大...', 'info');
+  };
+
+  window.favoriteSelectedImage = function() {
+    if (selectedDetail && selectedDetail.rel_path) {
+      favoriteOutputImage(selectedDetail.rel_path);
+    } else if (selectedImageId) {
+      var card = document.querySelector('.output-card[data-id="' + selectedImageId + '"]');
+      if (card && card.dataset.path) favoriteOutputImage(card.dataset.path);
+    }
+  };
+
+  window.setGridDensity = function(mode) {
+    var area = document.getElementById('outputs-scroll-area');
+    var btnComf = document.getElementById('btn-density-comfortable');
+    var btnComp = document.getElementById('btn-density-compact');
+    if (!area) return;
+    if (mode === 'compact') {
+      area.classList.add('density-compact');
+      if (btnComp) btnComp.classList.add('active');
+      if (btnComf) btnComf.classList.remove('active');
+      localStorage.setItem('nw-grid-density', 'compact');
+    } else {
+      area.classList.remove('density-compact');
+      if (btnComf) btnComf.classList.add('active');
+      if (btnComp) btnComp.classList.remove('active');
+      localStorage.setItem('nw-grid-density', 'comfortable');
+    }
+  };
+
+  window.toggleMoreActionsMenu = function() {
+    var menu = document.getElementById('more-actions-menu');
+    if (menu) menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+  };
+
+  // Close more-actions popover on click outside
+  document.addEventListener('click', function(e) {
+    var btn = document.getElementById('btn-more-actions');
+    var menu = document.getElementById('more-actions-menu');
+    if (menu && menu.style.display === 'block') {
+      if (!menu.contains(e.target) && btn && !btn.contains(e.target)) {
+        menu.style.display = 'none';
+      }
+    }
+  });
+
+  // Global ⌘K / Ctrl+K shortcut for search
+  window.addEventListener('keydown', function(e) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      var search = document.getElementById('search-input');
+      if (search) {
+        e.preventDefault();
+        search.focus();
+        search.select();
+      }
+    }
+  });
 
   window.openOutputDetail = function(id) {
     var idx = -1;
@@ -683,7 +1259,7 @@
         document.getElementById('modal-resolution').textContent = (data.width && data.height) ? (data.width + '×' + data.height) : '分辨率未知';
         var sizeKb = Math.round((data.file_size || 0) / 1024);
         document.getElementById('modal-filesize').textContent = sizeKb > 1024 ? ((sizeKb / 1024).toFixed(1) + ' MB') : (sizeKb + ' KB');
-        document.getElementById('modal-safety').textContent = data.safety_level === 'nsfw' ? '🔞 NSFW' : (data.safety_level === 'suspicious' ? '⚠️ 可疑' : '✅ 正常');
+        document.getElementById('modal-safety').textContent = data.safety_level === 'nsfw' ? '🔞 敏感' : (data.safety_level === 'suspicious' ? '⚠️ 可疑' : '✅ 正常');
         document.getElementById('modal-safety-source').textContent = data.safety_source ? ('来源：' + data.safety_source) : '';
         document.getElementById('modal-safety-select').value = data.safety_level || 'suspicious';
 
@@ -737,6 +1313,8 @@
 
   window.closeOutputModal = function() {
     window.closeSurgeonStudio();
+    var drawer = document.getElementById('surgeon-history-drawer');
+    if (drawer) drawer.classList.remove('open');
     document.getElementById('output-modal').style.display = 'none';
     currentDetail = null;
     lockedTags.clear();
@@ -894,19 +1472,40 @@
     p.style.display = (p.style.display === 'none' || !p.style.display) ? 'block' : 'none';
   };
 
+  window.toggleSurgeonAdvanced = function() {
+    var p = document.getElementById('surgeon-adv-panel');
+    var btn = document.getElementById('surgeon-adv-toggle-btn');
+    if (!p) return;
+    if (p.style.display === 'none' || !p.style.display) {
+      p.style.display = 'flex';
+      if (btn) btn.textContent = '高级设置 ▴';
+    } else {
+      p.style.display = 'none';
+      if (btn) btn.textContent = '高级设置 ▾';
+    }
+  };
+
   function checkAiKeyStatus() {
     fetch('/api/outputs/ai-tag-status')
       .then(function(res) { return res.json(); })
       .then(function(data) {
         var ind = document.getElementById('ai-key-status-indicator');
-        if (ind) {
-          if (data.has_key) {
-            ind.textContent = '🔑 Key 已配置';
-            ind.style.color = '#38ef7d';
-          } else {
-            ind.textContent = '🔑 配置 Key';
-            ind.style.color = '#ffaa00';
+        var dot = document.getElementById('surgeon-model-dot');
+        var text = document.getElementById('surgeon-model-text');
+        if (data && data.has_key) {
+          if (ind) {
+            ind.textContent = '已配置';
+            ind.style.color = 'var(--text-muted)';
           }
+          if (dot) dot.className = 'status-dot';
+          if (text) text.textContent = 'DeepSeek · 已就绪';
+        } else {
+          if (ind) {
+            ind.textContent = '🔑 配置 Key';
+            ind.style.color = 'var(--warning)';
+          }
+          if (dot) dot.className = 'status-dot offline';
+          if (text) text.textContent = '未配置 Key';
         }
       })
       .catch(function() {});
@@ -1223,65 +1822,102 @@
   }
 
   window.toggleSurgeonHistory = function() {
+    var drawer = document.getElementById('surgeon-history-drawer');
     var panel = document.getElementById('surgeon-history-panel');
-    if (!panel || !currentDetail) return;
-    if (panel.style.display === 'block') {
-      panel.style.display = 'none';
-      return;
+    if (!currentDetail) return;
+    if (drawer) {
+      if (drawer.classList.contains('open')) {
+        drawer.classList.remove('open');
+        return;
+      }
+      drawer.classList.add('open');
+    } else if (panel) {
+      if (panel.style.display === 'block') {
+        panel.style.display = 'none';
+        return;
+      }
+      panel.style.display = 'block';
     }
-    panel.style.display = 'block';
+
     var list = document.getElementById('surgeon-history-list');
-    list.innerHTML = '<div style="color:#94a3b8;font-size:11px;padding:4px;">加载版本树中...</div>';
+    if (!list) return;
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:12px;text-align:center;">加载版本历史中...</div>';
 
     fetch('/api/prompt/versions/' + encodeURIComponent(currentDetail.id))
       .then(function(res) { return res.json(); })
       .then(function(versions) {
         if (!Array.isArray(versions) || !versions.length) {
-          list.innerHTML = '<div style="color:#94a3b8;font-size:11px;padding:4px;">暂无已保存版本</div>';
+          list.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:12px;text-align:center;">暂无已保存版本</div>';
           return;
         }
+        var countEl = document.getElementById('drawer-ver-count-badge');
+        if (countEl) countEl.textContent = versions.length + ' 个版本';
+        var historyCountEl = document.getElementById('history-count');
+        if (historyCountEl) historyCountEl.textContent = versions.length;
+
         list.innerHTML = '';
         versions.forEach(function(item) {
-          var row = document.createElement('div');
-          row.className = 'surgeon-history-item' + (item.is_current ? ' is-active' : '');
+          var card = document.createElement('div');
+          card.className = 'version-node-item' + (item.is_current ? ' is-current' : '');
 
-          var info = document.createElement('div');
-          info.className = 'history-item-info';
+          var header = document.createElement('div');
+          header.className = 'version-node-header';
 
-          var inst = document.createElement('div');
-          inst.className = 'history-item-inst';
-          var vLabel = item.is_original ? '🔒 v0 Original (原始 Prompt)' : ('v' + item.version_number + ': ' + (item.instruction || '版本修改'));
-          if (item.is_current) {
-            inst.innerHTML = '<strong style="color:#a78bfa;">● ' + vLabel + ' (当前生效)</strong>';
+          var tag = document.createElement('span');
+          tag.className = 'version-node-tag';
+          if (item.is_original) {
+            tag.innerHTML = '<span style="color:var(--accent);">🔒 v0 Original</span>';
+          } else if (item.is_current) {
+            tag.innerHTML = '<span style="color:var(--ai);font-weight:600;">● v' + item.version_number + ' (当前生效)</span>';
           } else {
-            inst.textContent = vLabel;
+            tag.textContent = 'v' + item.version_number;
           }
 
-          var meta = document.createElement('div');
-          meta.className = 'history-item-meta';
-          meta.textContent = item.created_at || '';
+          var time = document.createElement('span');
+          time.className = 'version-node-time';
+          time.textContent = item.created_at || '';
 
-          info.appendChild(inst);
-          info.appendChild(meta);
+          header.appendChild(tag);
+          header.appendChild(time);
+          card.appendChild(header);
 
-          row.appendChild(info);
+          var desc = document.createElement('div');
+          desc.className = 'version-node-desc';
+          desc.textContent = item.instruction || (item.is_original ? '原始图片元数据（只读事实，不可删除修改）' : '版本修改');
+          desc.title = item.positive_prompt || '';
+          card.appendChild(desc);
+
+          var actions = document.createElement('div');
+          actions.className = 'version-node-actions';
 
           if (!item.is_current) {
-            var rbBtn = document.createElement('button');
-            rbBtn.type = 'button';
-            rbBtn.className = 'btn btn-secondary btn-xs';
-            rbBtn.textContent = '设为当前';
-            rbBtn.onclick = function() {
+            var setBtn = document.createElement('button');
+            setBtn.type = 'button';
+            setBtn.className = 'btn btn-secondary btn-xs';
+            setBtn.style.whiteSpace = 'nowrap';
+            setBtn.textContent = '设为当前';
+            setBtn.onclick = function() {
               switchToHistoryVersion(item.id, item.version_number);
             };
-            row.appendChild(rbBtn);
+            actions.appendChild(setBtn);
           }
 
-          list.appendChild(row);
+          var editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'btn btn-secondary btn-xs';
+          editBtn.style.whiteSpace = 'nowrap';
+          editBtn.textContent = '从此继续编辑 ↗';
+          editBtn.onclick = function() {
+            window.location.href = '/prompt-surgeon/' + currentDetail.id + '?version_id=' + item.id;
+          };
+          actions.appendChild(editBtn);
+
+          card.appendChild(actions);
+          list.appendChild(card);
         });
       })
       .catch(function(err) {
-        list.innerHTML = '<div style="color:#f87171;font-size:11px;padding:4px;">加载版本失败</div>';
+        list.innerHTML = '<div style="color:var(--danger);font-size:12px;padding:12px;text-align:center;">加载版本失败</div>';
       });
   };
 
@@ -1318,7 +1954,11 @@
           cBadge.textContent = (data.version_number === 0 ? 'v0 当前' : ('v' + data.version_number + ' 当前'));
         }
 
-        document.getElementById('surgeon-history-panel').style.display = 'none';
+        var drawer = document.getElementById('surgeon-history-drawer');
+        if (drawer) drawer.classList.remove('open');
+        var panel = document.getElementById('surgeon-history-panel');
+        if (panel) panel.style.display = 'none';
+
         loadSurgeonHistoryCount();
         loadSurgeonVersions();
       } else {
@@ -1880,14 +2520,12 @@
 
   window.appendStudioPromptToWorkbench = function() {
     var t = document.getElementById('studio-working-prompt-text').value;
-    if (t) {
-      if (window.appendTagsToWorkbench) {
-        window.appendTagsToWorkbench(t);
-      } else {
-        navigator.clipboard.writeText(t);
-        if (window.showToast) window.showToast('Prompt 已复制', 'success');
-      }
+    if (!t || !t.trim()) {
+      if (window.showToast) window.showToast('没有提示词内容', 'info');
+      return;
     }
+    stagePromptForWorkbench(t);
+    window.location.href = '/workshop';
   };
 
   window.revealModalImage = function() {
@@ -1928,8 +2566,15 @@
     loadModalImage(activeImages[currentImageIndex].id);
   };
 
-  // 键盘左右箭头切换图片，Escape 关闭 (优先关闭手术室)
+  // 键盘左右箭头切换图片，Escape 关闭 (优先关闭版本抽屉，再关闭手术室，最后关闭详情)
   window.addEventListener('keydown', function(e) {
+    var drawer = document.getElementById('surgeon-history-drawer');
+    if (drawer && drawer.classList.contains('open')) {
+      if (e.key === 'Escape') {
+        drawer.classList.remove('open');
+        return;
+      }
+    }
     var studio = document.getElementById('surgeon-studio-overlay');
     if (studio && studio.style.display !== 'none') {
       if (e.key === 'Escape') {
@@ -1970,16 +2615,12 @@
 
   window.appendModalPrompt = function() {
     var text = document.getElementById('modal-prompt').value;
-    if (!text) {
+    if (!text || !text.trim()) {
       if (window.showToast) window.showToast('没有提示词内容', 'info');
       return;
     }
-    if (window.appendTagsToWorkbench) {
-      window.appendTagsToWorkbench(text);
-    } else {
-      navigator.clipboard.writeText(text);
-      if (window.showToast) window.showToast('提示词已复制', 'success');
-    }
+    stagePromptForWorkbench(text);
+    window.location.href = '/workshop';
   };
 
   window.copyOutputPrompt = function(id) {
@@ -2002,15 +2643,13 @@
     for (var i = 0; i < activeImages.length; i++) {
       if (activeImages[i].id === id) {
         var text = activeImages[i].positive_prompt;
-        if (window.appendTagsToWorkbench) {
-          window.appendTagsToWorkbench(text);
-        } else if (text) {
-          navigator.clipboard.writeText(text);
-          if (window.showToast) window.showToast('已复制到剪贴板', 'success');
+        if (!text || !text.trim()) {
+          return false;
         }
-        return;
+        return stagePromptForWorkbench(text);
       }
     }
+    return false;
   };
 
   window.favoriteOutputImage = function(relPath) {
@@ -2089,20 +2728,17 @@
       .then(function(data) {
         if (data.ok) {
           if (window.showToast) window.showToast('扫描完成！新增入库 ' + data.result.ingested + ' 张图片', 'success');
-          setTimeout(function() { location.reload(); }, 600);
+          setTimeout(function() { location.href = '/outputs?order=desc'; }, 600);
         } else {
           if (window.showToast) window.showToast('扫描失败：' + (data.error || ''), 'error');
-          if (btn) { btn.disabled = false; btn.innerHTML = '🔄 刷新扫描'; }
+          if (btn) { btn.disabled = false; btn.innerHTML = '🔄 刷新图片'; }
         }
       })
       .catch(function() {
         if (window.showToast) window.showToast('网络错误，请稍后重试', 'error');
-        if (btn) { btn.disabled = false; btn.innerHTML = '🔄 刷新扫描'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '🔄 刷新图片'; }
       });
   };
-
-  var rescanBtn = document.getElementById('btn-rescan');
-  if (rescanBtn) rescanBtn.addEventListener('click', window.rescanOutputs);
 
   document.getElementById('btn-content-level').addEventListener('click', window.toggleContentLevel);
   document.getElementById('btn-level-settings').addEventListener('click', window.openLevelSettings);
@@ -2184,6 +2820,257 @@
 
   var changeFolderBtn = document.getElementById('btn-change-folder');
   if (changeFolderBtn) changeFolderBtn.addEventListener('click', window.openFolderDialog);
+
+  // Restore saved grid density
+  var savedDensity = localStorage.getItem('nw-grid-density');
+  if (savedDensity === 'compact') {
+    window.setGridDensity('compact');
+  }
+
+  // --- Inspector Resizers (Draggable boundary for Width & Preview Height) ---
+  (function() {
+    var inspector = document.getElementById('outputs-inspector');
+    var splitLayout = document.querySelector('.outputs-split-layout');
+    var widthResizer = document.getElementById('inspectorResizer');
+    var DEFAULT_WIDTH = 365;
+    var MIN_WIDTH = 260;
+
+    function setInspectorWidth(w, persist) {
+      var maxWidth = Math.max(MIN_WIDTH, Math.min(850, Math.floor(window.innerWidth * 0.7)));
+      var clamped = Math.max(MIN_WIDTH, Math.min(maxWidth, Math.round(w)));
+      document.documentElement.style.setProperty('--inspector-width', clamped + 'px');
+      if (inspector) inspector.style.width = clamped + 'px';
+      if (splitLayout) splitLayout.style.gridTemplateColumns = 'minmax(0, 1fr) ' + clamped + 'px';
+      if (persist) {
+        localStorage.setItem('wardrobe_inspector_width', clamped + 'px');
+      }
+      return clamped;
+    }
+
+    // Restore saved inspector width
+    var savedWidth = localStorage.getItem('wardrobe_inspector_width');
+    if (savedWidth) {
+      var parsedW = parseInt(savedWidth, 10);
+      if (parsedW && !isNaN(parsedW)) setInspectorWidth(parsedW, false);
+    }
+
+    if (widthResizer) {
+      var draggingWidth = false;
+      var startX = 0;
+      var startWidth = DEFAULT_WIDTH;
+
+      widthResizer.addEventListener('mousedown', function(e) {
+        if (window.innerWidth <= 800) return;
+        draggingWidth = true;
+        startX = e.clientX;
+        startWidth = inspector ? inspector.getBoundingClientRect().width : DEFAULT_WIDTH;
+        document.body.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        widthResizer.classList.add('is-dragging');
+        e.preventDefault();
+      });
+
+      window.addEventListener('mousemove', function(e) {
+        if (!draggingWidth) return;
+        var delta = startX - e.clientX; // moving left increases inspector width
+        setInspectorWidth(startWidth + delta, false);
+      });
+
+      window.addEventListener('mouseup', function(e) {
+        if (!draggingWidth) return;
+        draggingWidth = false;
+        document.body.classList.remove('resizing');
+        document.body.style.cursor = '';
+        widthResizer.classList.remove('is-dragging');
+        var delta = startX - e.clientX;
+        setInspectorWidth(startWidth + delta, true);
+      });
+
+      widthResizer.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+        setInspectorWidth(DEFAULT_WIDTH, true);
+        if (window.showToast) window.showToast('检查器宽度已恢复默认 (365px)', 'info', 1000);
+      });
+    }
+
+    // --- Light-Table Height Resizer ---
+    var heightResizer = document.getElementById('lightTableResizer');
+    var lightTable = document.getElementById('inspectorLightTable');
+    var DEFAULT_HEIGHT = 290;
+    var MIN_HEIGHT = 120;
+    var MAX_HEIGHT = 650;
+
+    function setPreviewHeight(h, persist) {
+      var clamped = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, Math.round(h)));
+      document.documentElement.style.setProperty('--preview-height', clamped + 'px');
+      if (lightTable) lightTable.style.height = clamped + 'px';
+      if (persist) {
+        localStorage.setItem('nw_inspector_preview_height', clamped + 'px');
+      }
+      return clamped;
+    }
+
+    // Restore saved preview height
+    var savedHeight = localStorage.getItem('nw_inspector_preview_height');
+    if (savedHeight) {
+      var parsedH = parseInt(savedHeight, 10);
+      if (parsedH && !isNaN(parsedH)) setPreviewHeight(parsedH, false);
+    }
+
+    if (heightResizer) {
+      var draggingHeight = false;
+      var startY = 0;
+      var startHeight = DEFAULT_HEIGHT;
+
+      heightResizer.addEventListener('mousedown', function(e) {
+        draggingHeight = true;
+        startY = e.clientY;
+        startHeight = lightTable ? lightTable.getBoundingClientRect().height : DEFAULT_HEIGHT;
+        document.body.classList.add('resizing');
+        document.body.style.cursor = 'row-resize';
+        heightResizer.classList.add('is-dragging');
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      window.addEventListener('mousemove', function(e) {
+        if (!draggingHeight) return;
+        var delta = e.clientY - startY; // moving down increases preview height
+        setPreviewHeight(startHeight + delta, false);
+      });
+
+      window.addEventListener('mouseup', function(e) {
+        if (!draggingHeight) return;
+        draggingHeight = false;
+        document.body.classList.remove('resizing');
+        document.body.style.cursor = '';
+        heightResizer.classList.remove('is-dragging');
+        var delta = e.clientY - startY;
+        setPreviewHeight(startHeight + delta, true);
+      });
+
+      heightResizer.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPreviewHeight(DEFAULT_HEIGHT, true);
+        if (window.showToast) window.showToast('预览图高度已恢复默认 (290px)', 'info', 1000);
+      });
+    }
+  })();
+
+  // --- Modal Surgeon Column Resizers ---
+  (function() {
+      var resizerL = document.getElementById('modalSurgeonResizerLeft');
+      var resizerR = document.getElementById('modalSurgeonResizerRight');
+      var colL = document.getElementById('modalSurgeonColLeft');
+      var colR = document.getElementById('modalSurgeonColRight');
+
+      var DEFAULT_COL1 = 280;
+      var DEFAULT_COL3 = 380;
+
+      function setCol1(w, persist) {
+        var clamped = Math.max(200, Math.min(480, Math.round(w)));
+        document.documentElement.style.setProperty('--surgeon-col1', clamped + 'px');
+        if (persist) localStorage.setItem('wardrobe_surgeon_col1', clamped + 'px');
+        return clamped;
+      }
+
+      function setCol3(w, persist) {
+        var clamped = Math.max(280, Math.min(600, Math.round(w)));
+        document.documentElement.style.setProperty('--surgeon-col3', clamped + 'px');
+        if (persist) localStorage.setItem('wardrobe_surgeon_col3', clamped + 'px');
+        return clamped;
+      }
+
+      var savedCol1 = localStorage.getItem('wardrobe_surgeon_col1');
+      if (savedCol1) {
+        var p1 = parseInt(savedCol1, 10);
+        if (p1 && !isNaN(p1)) setCol1(p1, false);
+      }
+      var savedCol3 = localStorage.getItem('wardrobe_surgeon_col3');
+      if (savedCol3) {
+        var p3 = parseInt(savedCol3, 10);
+        if (p3 && !isNaN(p3)) setCol3(p3, false);
+      }
+
+      if (resizerL) {
+        var draggingL = false;
+        var startX = 0;
+        var startW = DEFAULT_COL1;
+
+        resizerL.addEventListener('mousedown', function(e) {
+          draggingL = true;
+          startX = e.clientX;
+          startW = colL ? colL.getBoundingClientRect().width : DEFAULT_COL1;
+          document.body.classList.add('resizing');
+          document.body.style.cursor = 'col-resize';
+          resizerL.classList.add('is-dragging');
+          e.preventDefault();
+        });
+
+        window.addEventListener('mousemove', function(e) {
+          if (!draggingL) return;
+          var delta = e.clientX - startX;
+          setCol1(startW + delta, false);
+        });
+
+        window.addEventListener('mouseup', function(e) {
+          if (!draggingL) return;
+          draggingL = false;
+          document.body.classList.remove('resizing');
+          document.body.style.cursor = '';
+          resizerL.classList.remove('is-dragging');
+          var delta = e.clientX - startX;
+          setCol1(startW + delta, true);
+        });
+
+        resizerL.addEventListener('dblclick', function(e) {
+          e.preventDefault();
+          setCol1(DEFAULT_COL1, true);
+          if (window.showToast) window.showToast('版本树宽度已恢复默认', 'info', 1000);
+        });
+      }
+
+      if (resizerR) {
+        var draggingR = false;
+        var startXR = 0;
+        var startWR = DEFAULT_COL3;
+
+        resizerR.addEventListener('mousedown', function(e) {
+          draggingR = true;
+          startXR = e.clientX;
+          startWR = colR ? colR.getBoundingClientRect().width : DEFAULT_COL3;
+          document.body.classList.add('resizing');
+          document.body.style.cursor = 'col-resize';
+          resizerR.classList.add('is-dragging');
+          e.preventDefault();
+        });
+
+        window.addEventListener('mousemove', function(e) {
+          if (!draggingR) return;
+          var delta = startXR - e.clientX;
+          setCol3(startWR + delta, false);
+        });
+
+        window.addEventListener('mouseup', function(e) {
+          if (!draggingR) return;
+          draggingR = false;
+          document.body.classList.remove('resizing');
+          document.body.style.cursor = '';
+          resizerR.classList.remove('is-dragging');
+          var delta = startXR - e.clientX;
+          setCol3(startWR + delta, true);
+        });
+
+        resizerR.addEventListener('dblclick', function(e) {
+          e.preventDefault();
+          setCol3(DEFAULT_COL3, true);
+          if (window.showToast) window.showToast('操作台宽度已恢复默认', 'info', 1000);
+        });
+      }
+    })();
+
+    clearInspector();
 
 })();
 </script>

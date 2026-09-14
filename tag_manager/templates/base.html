@@ -3,71 +3,264 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>夜之主衣柜</title>
-  <link rel="stylesheet" href="/static/style.css?v=91">
+  <title>Night Wardrobe · Mochi Atelier</title>
+  <link rel="stylesheet" href="/static/style.css?v=88">
+  <link rel="stylesheet" href="/static/ui/tokens.css?v=92">
+  <link rel="stylesheet" href="/static/ui/reset.css?v=92">
+  <link rel="stylesheet" href="/static/ui/shell.css?v=92">
+  <link rel="stylesheet" href="/static/ui/components.css?v=92">
+  <link rel="stylesheet" href="/static/ui/utilities.css?v=92">
+  <link rel="stylesheet" href="/static/ui/pages/images.css?v=95">
+  <link rel="stylesheet" href="/static/ui/pages/gallery.css?v=92">
+  <link rel="stylesheet" href="/static/ui/pages/assets.css?v=94">
+  <link rel="stylesheet" href="/static/ui/pages/surgeon.css?v=92">
+  {% block extra_css %}{% endblock %}
 </head>
-<body>
-  <div class="app-layout">
-    <aside class="app-sidebar">
-      <a class="brand" href="/">
-        <span class="brand-mark">NW</span>
-        <span class="brand-copy">夜之主衣柜 <small>v1.24.1</small></span>
-      </a>
-      <nav class="side-nav" data-main-nav aria-label="主导航">
-        <a class="nav-item" href="/tags" title="Tag 库">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h6v6H5zM13 5h6v6h-6zM5 13h6v6H5zM13 13h6v6h-6z"/></svg>
-          <span>Tag 库</span>
+<body class="app-body">
+  <div class="app-layout" id="appLayout">
+    <!-- Mochi Atelier Sidebar (展开 210px / 折叠 62px，状态存 localStorage) -->
+    <aside class="app-sidebar" id="appSidebar">
+      <div class="sidebar-header">
+        <a class="sidebar-brand brand" href="/workshop">
+          <div class="brand-mark-box">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></svg>
+          </div>
+          <div class="brand-text-col">
+            <span class="brand-title">Night Wardrobe</span>
+            <span class="brand-subtitle font-mono">Mochi Atelier <small style="font-size:9.5px; opacity:0.75;">v1.24.1</small></span>
+          </div>
         </a>
-        <a class="nav-item" href="/characters" title="角色卡">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0z"/></svg>
-          <span>角色卡</span>
+        <button type="button" class="sidebar-toggle-btn" id="sidebarToggle" title="折叠/展开侧栏 (Ctrl+B)" aria-label="折叠/展开侧栏">
+          <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav side-nav" data-main-nav aria-label="核心工作区">
+        <!-- 1. Studio -->
+        <div style="padding: 2px 4px 6px;">
+          <a class="nav-item" href="/workshop" data-title="Studio · 创作工坊">
+            <span class="nav-item-left">
+              <span class="nav-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a4.5 4.5 0 0 0 0 9 4.5 4.5 0 0 1 0 9"/><circle cx="8.5" cy="8.5" r="1.5"/><circle cx="15.5" cy="8.5" r="1.5"/><circle cx="15.5" cy="15.5" r="1.5"/></svg>
+              </span>
+              <span>创作工坊</span>
+            </span>
+            <span class="nav-item-badge">⌥1</span>
+          </a>
+        </div>
+
+        <!-- 2. Images 分组 -->
+        <div class="nav-group-title">图片</div>
+        <a class="nav-item" href="/outputs" data-title="生图查看">
+          <span class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            </span>
+            <span>生图查看</span>
+          </span>
+          <span class="nav-item-dot"></span>
         </a>
-        <a class="nav-item" href="/recipes" title="配方库">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16H6zM9 8h6v2H9zm0 4h6v2H9zm0 4h4v2H9z"/></svg>
-          <span>配方库</span>
+        <a class="nav-item" href="/gallery" data-title="参考图库">
+          <span class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2z"/></svg>
+            </span>
+            <span>参考图库</span>
+          </span>
         </a>
-        <a class="nav-item" href="/workshop" title="工坊">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 15 6l3 3L7 20H4zm12-12 2-2 3 3-2 2z"/></svg>
-          <span>工坊</span>
+
+        <!-- 3. Assets 分组 -->
+        <div class="nav-group-title">资源</div>
+        <a class="nav-item" href="/characters" data-title="角色卡">
+          <span class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <span>角色卡</span>
+          </span>
         </a>
-        <a class="nav-item" href="/gallery" title="图库">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zm3 10h10l-3-4-2 3-2-2zM8 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>
-          <span>图库</span>
+        <a class="nav-item" href="/loras" data-title="LoRA 库">
+          <span class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </span>
+            <span>LoRA 库</span>
+          </span>
         </a>
-        <a class="nav-item" href="/outputs" title="生图查看">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"/></svg>
-          <span>生图查看</span>
+        <a class="nav-item" href="/recipes" data-title="配方库">
+          <span class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </span>
+            <span>配方库</span>
+          </span>
         </a>
-        <a class="nav-item" href="/workflows" title="工作流">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h5v4H5zm9 0h5v4h-5zM5 15h5v4H5zm9 0h5v4h-5zM10 9h4v1h-4zm-3 2v4h1v-4zm10 0v4h1v-4z"/></svg>
-          <span>工作流</span>
+        <a class="nav-item" href="/tags" data-title="标签库">
+          <span class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></svg>
+            </span>
+            <span>标签库</span>
+          </span>
         </a>
-        <a class="nav-item" href="/video-decrypt" title="视频解密">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h11v14H4zm12 4 4-3v12l-4-3zm-8 0v6l5-3z"/></svg>
-          <span>视频解密</span>
-        </a>
-        <a class="nav-item" href="/manga" title="漫画下载">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zm3 3v2h8V7zm0 4v2h8v-2zm0 4v2h5v-2z"/></svg>
-          <span>漫画下载</span>
-        </a>
-        <a class="nav-item" href="/loras" title="LoRA 库">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5zm-9 10 9 5 9-5M3 18l9 5 9-5"/></svg>
-          <span>LoRA 库</span>
-        </a>
-        <a class="nav-item" href="/gacha" title="抽卡" data-full-load>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zm4 3v4h4V7zm6 0v4h2V7zM8 13v4h2v-4zm4 0v4h4v-4z"/></svg>
-          <span>抽卡</span>
+
+        <!-- 4. Workflows -->
+        <div class="nav-group-title">工作流</div>
+        <a class="nav-item" href="/workflows" data-title="节点工作流">
+          <span class="nav-item-left">
+            <span class="nav-item-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            </span>
+            <span>节点工作流</span>
+          </span>
         </a>
       </nav>
+
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <button type="button" class="settings-nav-btn" id="sidebarSettingsBtn" onclick="if(window.openCopilotSettingsDialog){window.openCopilotSettingsDialog();}else{location.href='/workshop';}" data-title="Settings · 系统设置">
+          <span class="nav-item-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"/></svg>
+          </span>
+          <span>Settings 系统设置</span>
+        </button>
+      </div>
+      <div class="sidebar-resizer" id="sidebarResizer" role="separator" aria-orientation="vertical" aria-label="拖动调整侧栏宽度" title="拖动调整侧栏宽度 (双击恢复默认)"></div>
     </aside>
-    <div id="nav-loading" class="nav-loading">加载中...</div>
-    <div id="toast-container" class="toast-container" aria-live="polite"></div>
-    <main class="app-main">
-      {% block content %}{% endblock %}
-    </main>
+
+    <!-- App Workspace -->
+    <div class="app-workspace">
+      <!-- Topbar -->
+      <header class="workspace-topbar">
+        <div class="topbar-breadcrumb">
+          <div class="breadcrumb-path" id="topbarContext">
+            <span id="topbarTitle">Studio</span>
+            <span style="color:var(--mochi-muted);">/</span>
+            <span class="breadcrumb-active" id="topbarSubtitle">Prompt 创作工坊</span>
+          </div>
+          <div class="topbar-model-badge">
+            <span class="model-dot"></span>
+            <span>SDXL · Turbo</span>
+          </div>
+        </div>
+        <div class="topbar-right-actions">
+          <a class="btn-inspire-pill" href="/gacha" data-full-load title="✦ Inspire 灵感抽卡">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></svg>
+            <span>+ Inspire / 灵感抽卡</span>
+          </a>
+          <div style="height:16px; width:1px; background:var(--mochi-border);"></div>
+          <div class="user-avatar-pill" title="Mochi Atelier">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          </div>
+        </div>
+      </header>
+
+      <div id="nav-loading" class="nav-loading">加载中...</div>
+      <div id="toast-container" class="toast-container" aria-live="polite"></div>
+      <main class="app-main workspace-main">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
   </div>
+
   <script>
   (function() {
+    // 1. Sidebar Collapse & Resize Management (localStorage persisted)
+    var sidebar = document.getElementById('appSidebar');
+    var toggleBtn = document.getElementById('sidebarToggle');
+    var sidebarResizer = document.getElementById('sidebarResizer');
+    var isCollapsed = localStorage.getItem('nw_sidebar_collapsed') === '1';
+    var DEFAULT_SIDEBAR_WIDTH = 210;
+    var MIN_SIDEBAR_WIDTH = 160;
+    var MAX_SIDEBAR_WIDTH = 360;
+
+    function setSidebarWidth(width, persist) {
+      if (!sidebar) return;
+      var clamped = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, Math.round(width)));
+      document.documentElement.style.setProperty('--sidebar-width', clamped + 'px');
+      if (persist) {
+        localStorage.setItem('nw_sidebar_width', clamped + 'px');
+      }
+      return clamped;
+    }
+
+    function setSidebarCollapsed(collapsed) {
+      if (!sidebar) return;
+      if (collapsed) {
+        sidebar.classList.add('collapsed');
+        document.body.classList.add('sidebar-collapsed');
+        document.documentElement.style.setProperty('--sidebar-width', '62px');
+        localStorage.setItem('nw_sidebar_collapsed', '1');
+      } else {
+        sidebar.classList.remove('collapsed');
+        document.body.classList.remove('sidebar-collapsed');
+        var savedW = parseInt(localStorage.getItem('nw_sidebar_width'), 10) || DEFAULT_SIDEBAR_WIDTH;
+        setSidebarWidth(savedW, false);
+        localStorage.setItem('nw_sidebar_collapsed', '0');
+      }
+    }
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        setSidebarCollapsed(!sidebar.classList.contains('collapsed'));
+      });
+    }
+    // Keyboard shortcut Ctrl+B to toggle sidebar
+    window.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        if (sidebar) setSidebarCollapsed(!sidebar.classList.contains('collapsed'));
+      }
+    });
+
+    if (isCollapsed) {
+      setSidebarCollapsed(true);
+    } else {
+      var savedWidth = localStorage.getItem('nw_sidebar_width');
+      if (savedWidth) {
+        var parsed = parseInt(savedWidth, 10);
+        if (parsed && !isNaN(parsed)) setSidebarWidth(parsed, false);
+      }
+    }
+
+    // Sidebar Resizer Drag Logic
+    if (sidebarResizer) {
+      var sidebarDragging = false;
+
+      sidebarResizer.addEventListener('mousedown', function(e) {
+        if (sidebar.classList.contains('collapsed')) return;
+        sidebarDragging = true;
+        document.body.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        sidebarResizer.classList.add('is-dragging');
+        e.preventDefault();
+      });
+
+      window.addEventListener('mousemove', function(e) {
+        if (!sidebarDragging) return;
+        setSidebarWidth(e.clientX, false);
+      });
+
+      window.addEventListener('mouseup', function(e) {
+        if (!sidebarDragging) return;
+        sidebarDragging = false;
+        document.body.classList.remove('resizing');
+        document.body.style.cursor = '';
+        sidebarResizer.classList.remove('is-dragging');
+        if (e && e.clientX) {
+          setSidebarWidth(e.clientX, true);
+        }
+      });
+
+      sidebarResizer.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+        setSidebarWidth(DEFAULT_SIDEBAR_WIDTH, true);
+        if (window.showToast) window.showToast('侧边栏宽度已恢复默认', 'info', 1000);
+      });
+    }
+
+    // 2. Global Toast
     window.showToast = function(message, type, duration) {
       type = type || 'info';
       duration = duration || 2400;
@@ -92,6 +285,7 @@
       }, duration);
     };
 
+    // 3. Workbench Append Helper
     window.appendTagsToWorkbench = function(tagsOrString, options) {
       options = options || {};
       var raw = (typeof tagsOrString === 'string') ? tagsOrString : (Array.isArray(tagsOrString) ? tagsOrString.join(', ') : '');
@@ -130,14 +324,57 @@
       }
     };
 
+    // 4. SPA Navigation and Topbar context
     const nav = document.querySelector('[data-main-nav]');
     const main = document.querySelector('main');
     const overlay = document.getElementById('nav-loading');
+    const topbarTitle = document.getElementById('topbarTitle');
+    const topbarSubtitle = document.getElementById('topbarSubtitle');
 
     function updateActiveNav(path) {
+      if (!nav) return;
+      var currentA = null;
       nav.querySelectorAll('a').forEach(a => {
-        a.classList.toggle('active', path.startsWith(a.getAttribute('href')));
+        var href = a.getAttribute('href');
+        var active = (href === '/' && (path === '/' || path === '/workshop')) || (href !== '/' && path.startsWith(href));
+        a.classList.toggle('active', active);
+        if (active) currentA = a;
       });
+
+      // Update Topbar
+      if (topbarTitle && topbarSubtitle) {
+        if (path.startsWith('/workshop') || path === '/') {
+          topbarTitle.textContent = '创作';
+          topbarSubtitle.textContent = '提示词工坊';
+        } else if (path.startsWith('/outputs')) {
+          topbarTitle.textContent = '图片';
+          topbarSubtitle.textContent = '生图查看';
+        } else if (path.startsWith('/gallery')) {
+          topbarTitle.textContent = '图片';
+          topbarSubtitle.textContent = '参考图库';
+        } else if (path.startsWith('/characters')) {
+          topbarTitle.textContent = '资源';
+          topbarSubtitle.textContent = '角色卡';
+        } else if (path.startsWith('/loras')) {
+          topbarTitle.textContent = '资源';
+          topbarSubtitle.textContent = 'LoRA 库';
+        } else if (path.startsWith('/recipes')) {
+          topbarTitle.textContent = '资源';
+          topbarSubtitle.textContent = '配方库';
+        } else if (path.startsWith('/tags')) {
+          topbarTitle.textContent = '资源';
+          topbarSubtitle.textContent = '标签库';
+        } else if (path.startsWith('/workflows')) {
+          topbarTitle.textContent = '工作流';
+          topbarSubtitle.textContent = '工作流';
+        } else if (path.startsWith('/prompt-surgeon')) {
+          topbarTitle.textContent = '提示词编辑';
+          topbarSubtitle.textContent = '独立手术室';
+        } else if (path.startsWith('/llm')) {
+          topbarTitle.textContent = '设置';
+          topbarSubtitle.textContent = '系统配置';
+        }
+      }
     }
 
     function execScripts(container) {
@@ -149,6 +386,7 @@
     }
 
     function saveTextareas() {
+      if (!main) return;
       main.querySelectorAll('textarea[id], input[id], select[id]').forEach(el => {
         if (el.type === 'hidden' || el.type === 'checkbox') return;
         sessionStorage.setItem('_persist_' + el.id, el.value);
@@ -156,6 +394,7 @@
     }
 
     function restoreTextareas() {
+      if (!main) return;
       main.querySelectorAll('textarea[id], input[id], select[id]').forEach(el => {
         if (el.type === 'hidden' || el.type === 'checkbox') return;
         const saved = sessionStorage.getItem('_persist_' + el.id);
@@ -164,17 +403,21 @@
     }
 
     function isHeavyPage() {
-      return main.querySelectorAll('*').length > 4000;
+      return main && main.querySelectorAll('*').length > 4000;
     }
 
     function showOverlay() {
-      overlay.style.opacity = '1';
-      overlay.style.pointerEvents = 'auto';
+      if (overlay) {
+        overlay.style.opacity = '1';
+        overlay.style.pointerEvents = 'auto';
+      }
     }
 
     function hideOverlay() {
-      overlay.style.opacity = '0';
-      overlay.style.pointerEvents = 'none';
+      if (overlay) {
+        overlay.style.opacity = '0';
+        overlay.style.pointerEvents = 'none';
+      }
     }
 
     async function navigate(url, pushState) {
@@ -184,7 +427,7 @@
       if (typeof window.__wardrobePageCleanup === 'function') window.__wardrobePageCleanup();
       saveTextareas();
       const heavy = isHeavyPage();
-      if (heavy) main.textContent = '';
+      if (heavy && main) main.textContent = '';
 
       try {
         const resp = await fetch(url);
@@ -192,7 +435,7 @@
         const html = await resp.text();
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const newMain = doc.querySelector('main');
-        if (!newMain) { hideOverlay(); return false; }
+        if (!newMain || !main) { hideOverlay(); return false; }
         main.innerHTML = newMain.innerHTML;
         execScripts(main);
         restoreTextareas();
@@ -204,17 +447,21 @@
       } catch(e) { hideOverlay(); return false; }
     }
 
-    nav.addEventListener('click', e => {
-      const a = e.target.closest('a');
-      if (!a || !a.getAttribute('href').startsWith('/')) return;
-      if (a.hasAttribute('data-full-load')) return;
-      e.preventDefault();
-      navigate(a.href, true).then(ok => { if (!ok) location.href = a.href; });
-    });
+    if (nav) {
+      nav.addEventListener('click', e => {
+        const a = e.target.closest('a');
+        if (!a || !a.getAttribute('href').startsWith('/')) return;
+        if (a.hasAttribute('data-full-load')) return;
+        e.preventDefault();
+        navigate(a.href, true).then(ok => { if (!ok) location.href = a.href; });
+      });
+    }
 
-    document.querySelector('.brand').addEventListener('click', e => {
-      e.preventDefault();
-      navigate('/', true).then(ok => { if (!ok) location.href = '/'; });
+    document.querySelectorAll('.brand').forEach(brand => {
+      brand.addEventListener('click', e => {
+        e.preventDefault();
+        navigate('/workshop', true).then(ok => { if (!ok) location.href = '/workshop'; });
+      });
     });
 
     window.addEventListener('popstate', () => { navigate(location.href, false); });

@@ -1,0 +1,109 @@
+/* Mochi Atelier Reset & Warm Paper Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: var(--mochi-canvas);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--mochi-canvas) !important;
+  background-image:
+    radial-gradient(ellipse 80% 80% at 0% 0%, #FFF4DF 0%, transparent 60%),
+    radial-gradient(ellipse 70% 70% at 100% 100%, #FFF0EE 0%, transparent 70%) !important;
+  background-attachment: fixed !important;
+  color: var(--mochi-charcoal);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(247, 190, 156, 0.35);
+  color: var(--mochi-charcoal);
+}
+
+/* Subtle non-intrusive scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(133, 100, 100, 0.15) transparent;
+}
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(133, 100, 100, 0.15);
+  border-radius: var(--radius-sm);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(133, 100, 100, 0.28);
+}
+
+/* Neutralize global button styling from legacy style.css */
+button {
+  background: var(--mochi-milk);
+  color: var(--mochi-charcoal);
+  border: 1px solid var(--mochi-border);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+  white-space: nowrap;
+}
+
+button:hover {
+  background: var(--mochi-canvas);
+  border-color: rgba(133, 100, 100, 0.18);
+  box-shadow: 0 2px 8px rgba(175, 125, 110, 0.08);
+}
+
+button:active {
+  background: var(--mochi-pale-peach);
+  transform: scale(0.985);
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--mochi-peach-border);
+  outline-offset: 1px;
+}
+
+a {
+  color: var(--mochi-mauve);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+a:hover {
+  color: var(--mochi-charcoal);
+}
+
+input, select, textarea {
+  background: var(--mochi-milk);
+  color: var(--mochi-charcoal);
+  border: 1px solid var(--mochi-border);
+  border-radius: var(--radius-md);
+  padding: 7px 11px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  box-shadow: inset 0 1px 2px rgba(133, 100, 100, 0.03);
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+}
+input:focus, select:focus, textarea:focus {
+  background: #FFFFFF;
+  border-color: var(--mochi-peach-border);
+  box-shadow: 0 0 0 3px rgba(247, 190, 156, 0.18);
+  outline: none;
+}

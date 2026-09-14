@@ -91,11 +91,11 @@ class TestOutputsFeature(unittest.TestCase):
         self.assertIn("生图查看", resp.text)
         self.assertIn("日期归档", resp.text)
         self.assertIn("内容级别", resp.text)
-        self.assertIn("级别设置", resp.text)
-        self.assertIn("自定义 NSFW 词", resp.text)
-        self.assertIn("解析新增图源数据", resp.text)
-        self.assertIn("WD14 评级新增图片", resp.text)
-        self.assertIn("手动修改评级", resp.text)
+        self.assertIn("评级设置", resp.text)
+        self.assertIn("自定义敏感词", resp.text)
+        self.assertIn("解析新增图源", resp.text)
+        self.assertIn("WD14 评级", resp.text)
+        self.assertIn("手动评级", resp.text)
 
     def test_manual_safety_override_keeps_user_choice(self):
         with connect(self.db_path) as conn:
@@ -186,6 +186,44 @@ class TestOutputsFeature(unittest.TestCase):
             fav_dir = GALLERY_DIR / "测试收藏"
             if fav_dir.exists() and not any(fav_dir.iterdir()):
                 fav_dir.rmdir()
+
+    def test_inspector_clears_hidden_or_stale_selection(self):
+        template = (Path(__file__).parents[1] / "templates" / "outputs.html").read_text(encoding="utf-8")
+        self.assertIn("function isVisibleImage(id)", template)
+        self.assertIn("function validateCurrentSelection()", template)
+        self.assertIn("cardEl.classList.contains('content-hidden')", template)
+        self.assertIn("requestId !== inspectorRequestId", template)
+        self.assertIn("validateCurrentSelection();", template)
+
+    def test_output_card_hover_does_not_change_grid_row_height(self):
+        css = (Path(__file__).parents[1] / "static" / "ui" / "pages" / "images.css").read_text(encoding="utf-8")
+        self.assertNotIn(".output-card:hover .card-hover-submeta {\n  display: flex;", css)
+        self.assertIn("top: auto;", css)
+
+    def test_output_card_hides_timestamp_from_card_face(self):
+        template = (Path(__file__).parents[1] / "templates" / "outputs.html").read_text(encoding="utf-8")
+        self.assertNotIn('<span class="card-timestamp output-time-badge">', template)
+
+    def test_fill_workbench_opens_workbench_after_staging_prompt(self):
+        template = (Path(__file__).parents[1] / "templates" / "outputs.html").read_text(encoding="utf-8")
+        start = template.index("window.sendSelectedToStudio")
+        end = template.index("window.upscaleSelectedImage", start)
+        self.assertIn("appendOutputPrompt(selectedImageId)", template[start:end])
+        self.assertIn("window.location.href = '/workshop';", template[start:end])
+
+    def test_modal_and_surgeon_fill_workbench_also_open_workbench(self):
+        template = (Path(__file__).parents[1] / "templates" / "outputs.html").read_text(encoding="utf-8")
+        modal_start = template.index("window.appendModalPrompt")
+        modal_end = template.index("window.copyOutputPrompt", modal_start)
+        surgeon_start = template.index("window.appendStudioPromptToWorkbench")
+        surgeon_end = template.index("window.revealModalImage", surgeon_start)
+        self.assertIn("window.location.href = '/workshop';", template[modal_start:modal_end])
+        self.assertIn("window.location.href = '/workshop';", template[surgeon_start:surgeon_end])
+
+    def test_fill_workbench_stages_prompt_in_custom_positive_field(self):
+        template = (Path(__file__).parents[1] / "templates" / "outputs.html").read_text(encoding="utf-8")
+        self.assertIn("function stagePromptForWorkbench(text)", template)
+        self.assertIn("sessionStorage.setItem('_persist_ws-custom-pos', text.trim())", template)
 
 
 if __name__ == "__main__":

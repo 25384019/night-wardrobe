@@ -22,18 +22,12 @@ class StartupGalleryScanTests(unittest.TestCase):
                 "scan_gallery",
                 side_effect=lambda **_kwargs: calls.append("scan_gallery"),
             ) as scan_gallery,
-            patch.object(
-                app_module.video_decrypt_service,
-                "startup",
-                side_effect=lambda: calls.append("video_decrypt_startup"),
-            ) as video_decrypt_startup,
         ):
             app_module.startup()
 
-        self.assertEqual(["init_db", "scan_gallery", "video_decrypt_startup"], calls)
+        self.assertEqual(["init_db", "scan_gallery"], calls)
         init_db.assert_called_once_with()
         scan_gallery.assert_called_once_with(initialize_db=False)
-        video_decrypt_startup.assert_called_once_with()
 
 
 class WorkshopFirstVisitTests(unittest.TestCase):
@@ -617,97 +611,6 @@ class ScanIconSpinTests(unittest.TestCase):
         self.assertIn("icon-scan", reduce)
 
 
-class VideoDecryptAjaxTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.tpl = (Path(app_module.BASE_DIR) / "templates" / "video_decrypt.html").read_text(encoding="utf-8")
-
-    def test任务区局部刷新取代整页跳转(self) -> None:
-        tpl = self.tpl
-        # 局部刷新：fetch 页面 + DOMParser 抽取 .video-jobs 替换 innerHTML
-        self.assertIn("async function refreshJobs()", tpl)
-        self.assertIn("DOMParser", tpl)
-        self.assertIn("current.innerHTML = fresh.innerHTML", tpl)
-        # 上传完成与任务终态都不再整页跳转
-        self.assertNotIn("location.href = '/video-decrypt'", tpl)
-        # 轮询改动态查询活动任务（不再依赖首屏静态列表）
-        self.assertNotIn("const activeJobs", tpl)
-        self.assertIn("document.querySelectorAll('[data-video-job-id]')", tpl)
-
-    def test删除改fetch拦截且事件委托挂在常驻section上(self) -> None:
-        tpl = self.tpl
-        self.assertIn("data-video-delete-form", tpl)
-        self.assertIn("jobsSection.addEventListener('submit'", tpl)
-        self.assertIn("fetch(deleteForm.action, { method: 'POST' })", tpl)
-        # 内联 onsubmit 确认已移入 JS 委托
-        self.assertNotIn("onsubmit=", tpl)
-        # 清理钩子与流式上传契约不变
-        self.assertIn("window.__wardrobePageCleanup", tpl)
-        self.assertIn("xhr.upload.addEventListener('progress'", tpl)
-
-    def test运行中任务进度条元素契约(self) -> None:
-        tpl = self.tpl
-        self.assertIn("解密核心", tpl)
-        self.assertIn("runtime.core_version", tpl)
-        self.assertIn("data-vd-progress", tpl)
-        self.assertIn("video-job-progress-fill", tpl)
-        self.assertIn("video-job-progress-percent", tpl)
-        self.assertIn("video-job-progress-message", tpl)
-
-
-class MangaToolPageLayoutTests(unittest.TestCase):
-    """v1.14.0 漫画工具页紧凑工具化重构契约"""
-
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.tpl = (Path(app_module.BASE_DIR) / "templates" / "manga.html").read_text(encoding="utf-8")
-        cls.style = (Path(app_module.BASE_DIR) / "static" / "style.css").read_text(encoding="utf-8")
-
-    def test大Hero与整行配置卡已删除(self) -> None:
-        tpl = self.tpl
-        self.assertNotIn("video-decrypt-hero", tpl)
-        self.assertNotIn("runtime-card", tpl)
-        self.assertNotIn("manga-forms", tpl)
-        self.assertNotIn("<details", tpl)
-
-    def test紧凑Header与设置抽屉(self) -> None:
-        tpl = self.tpl
-        self.assertIn("manga-head", tpl)
-        self.assertIn("mangaSettingsBtn", tpl)
-        self.assertIn('id="mangaDrawer"', tpl)
-        self.assertIn('action="/manga/config"', tpl)
-        # 抽屉表单字段与后端契约不变
-        for name in ('name="output_dir"', 'name="proxy"', 'name="domains"', 'name="duration_ms"', 'name="loop"', 'name="resize"'):
-            self.assertIn(name, tpl)
-
-    def test模式切换Segmented且保留两表单契约(self) -> None:
-        tpl = self.tpl
-        self.assertIn("mangaModeDownload", tpl)
-        self.assertIn("mangaModeCompose", tpl)
-        self.assertIn("manga_mode", tpl)
-        self.assertIn("url.searchParams.set('mode', mode)", tpl)
-        # 两个表单始终存在于 DOM，仅 hidden 切换
-        self.assertIn('id="mangaDownloadForm"', tpl)
-        self.assertIn('id="mangaComposeForm"', tpl)
-        self.assertIn('id="downloadApngFields"', tpl)
-
-    def test任务列表紧凑化且挂钩不变(self) -> None:
-        tpl = self.tpl
-        self.assertIn("manga-job-list", tpl)
-        self.assertIn("data-manga-job-id", tpl)
-        self.assertIn("data-manga-delete-form", tpl)
-        self.assertIn("data-job-progress", tpl)
-        self.assertIn("/api/manga/jobs/", tpl)
-        self.assertIn("__wardrobePageCleanup", tpl)
-
-    def test样式命名空间与定宽控件(self) -> None:
-        style = self.style
-        for snippet in (".manga-head", ".manga-mode-switch", ".manga-drawer", ".manga-job-download",
-                        ".manga-file-drop", "minmax(400px, 2fr)", "position: sticky"):
-            self.assertIn(snippet, style)
-        # 旧的堆叠布局与 details 配置卡样式已清理
-        self.assertNotIn(".manga-forms", style)
-        self.assertNotIn(".manga-config summary", style)
 
 
 class LlmSettingsEmbedTests(unittest.TestCase):

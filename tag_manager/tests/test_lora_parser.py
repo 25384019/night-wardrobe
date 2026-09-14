@@ -229,6 +229,12 @@ class LoraTemplateContractTests(unittest.TestCase):
         self.assertIn(".lora-card-preview { position: relative; aspect-ratio: 2 / 3;", self.style)
         self.assertIn(".lora-image-dialog", self.style)
 
+    def test触发词编辑保持保存与复制操作(self) -> None:
+        self.assertIn('class="lora-trigger-actions"', self.template)
+        self.assertIn("input.parentElement.querySelector('.lora-trigger-actions button')", self.template)
+        self.assertIn("input.closest('.lora-card').dataset.triggers", self.template)
+        self.assertIn("复制提示词", self.template)
+
 
 if __name__ == "__main__":
     unittest.main()

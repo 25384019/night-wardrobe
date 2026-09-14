@@ -816,28 +816,56 @@
     document.getElementById('densityComfort').classList.toggle('active', !compact);
   }
 
-  // 抽屉右缘拖拽调宽（232–520px），宽度经 CSS 变量同时驱动抽屉与主内容让位
+  // 抽屉右缘拖拽调宽（260–680px），宽度经 CSS 变量同时驱动抽屉与主内容让位
   var DRAWER_LEFT = 110;
+  var DRAWER_DEFAULT_WIDTH = 420;
   var DRAWER_MIN_WIDTH = 260;
   var DRAWER_MAX_WIDTH = 680;
   function setDrawerWidth(width, persist) {
-    const clamped = Math.max(DRAWER_MIN_WIDTH, Math.min(DRAWER_MAX_WIDTH, width));
+    const clamped = Math.max(DRAWER_MIN_WIDTH, Math.min(DRAWER_MAX_WIDTH, Math.round(width)));
     document.documentElement.style.setProperty('--tag-drawer-width', clamped + 'px');
     if (persist !== false) localStorage.setItem('wardrobe_tag_drawer_width', String(clamped));
   }
   (function() {
     const resizer = document.getElementById('drawerResizer');
+    if (!resizer) return;
     let dragging = false;
+    let startDrawerLeft = 0;
+
     on(resizer, 'mousedown', function(e) {
       if (narrowDrawerQuery.matches) return;
       dragging = true;
+      const rect = drawer ? drawer.getBoundingClientRect() : null;
+      startDrawerLeft = rect ? rect.left : DRAWER_LEFT;
+      document.body.classList.add('resizing');
+      document.body.style.cursor = 'col-resize';
+      resizer.classList.add('is-dragging');
       e.preventDefault();
     });
+
     on(document, 'mousemove', function(e) {
       if (!dragging) return;
-      setDrawerWidth(e.clientX - DRAWER_LEFT);
+      const currentLeft = (drawer ? drawer.getBoundingClientRect().left : startDrawerLeft) || startDrawerLeft;
+      setDrawerWidth(e.clientX - currentLeft, false);
     });
-    on(document, 'mouseup', function() { dragging = false; });
+
+    on(document, 'mouseup', function(e) {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove('resizing');
+      document.body.style.cursor = '';
+      resizer.classList.remove('is-dragging');
+      const currentLeft = (drawer ? drawer.getBoundingClientRect().left : startDrawerLeft) || startDrawerLeft;
+      if (e && e.clientX) {
+        setDrawerWidth(e.clientX - currentLeft, true);
+      }
+    });
+
+    on(resizer, 'dblclick', function(e) {
+      e.preventDefault();
+      setDrawerWidth(DRAWER_DEFAULT_WIDTH, true);
+      if (window.showToast) window.showToast('工作台宽度已恢复默认', 'info', 1000);
+    });
   })();
 
   // ─── 事件绑定（容器委托，局部刷新后无需重绑）───────────────────────────
