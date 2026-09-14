@@ -957,55 +957,59 @@ a.gallery-breadcrumb-item:hover, a.gallery-breadcrumb-item:focus-visible { color
 .lora-card-actions { display: flex; gap: 8px; margin-top: auto; align-items: center; }
 .lora-card-actions form { margin: 0; }
 .lora-preview-btn { cursor: pointer; }
-.lora-image-dialog { border: 1px solid var(--line-hot); border-radius: 16px; padding: 0; background: rgba(5,8,22,.92); backdrop-filter: blur(20px); max-width: 90vw; max-height: 90vh; box-shadow: 0 20px 60px rgba(0,0,0,.7); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-.lora-image-dialog::backdrop { background: rgba(0,0,0,.75); backdrop-filter: blur(4px); }
-.lora-image-dialog img { max-width: 85vw; max-height: 85vh; object-fit: contain; display: block; border-radius: 14px; }
-.lora-image-dialog-close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; background: rgba(15,23,42,.8); border: 1px solid var(--line); color: #fff; font-size: 20px; line-height: 1; display: grid; place-items: center; cursor: pointer; z-index: 10; }
-.lora-image-dialog-close:hover { background: rgba(76,29,149,.8); border-color: var(--line-hot); }
-
-/* LoRA 预览必须在视口内完整显示，避免竖图撑破弹窗或被浏览器裁切。 */
 .lora-image-dialog {
-  box-sizing: border-box;
-  width: min(92vw, 1100px);
-  max-width: min(92vw, 1100px);
-  max-height: calc(100vh - 32px);
-  overflow: hidden;
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  place-items: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, .76);
+  backdrop-filter: blur(6px);
 }
 
+.lora-image-dialog[hidden] { display: none; }
+.lora-image-dialog-content {
+  position: relative;
+  display: grid;
+  place-items: center;
+  max-width: min(90vw, 1100px);
+  max-height: calc(100vh - 48px);
+}
 .lora-image-dialog img {
   box-sizing: border-box;
+  display: block;
+  max-width: min(90vw, 1100px);
+  max-height: calc(100vh - 48px);
   width: auto;
   height: auto;
-  max-width: 100%;
-  max-height: calc(100vh - 96px);
   object-fit: contain;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .55);
 }
-
-.lora-image-dialog-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 10px;
-  background: rgba(15, 23, 42, .94);
-}
-
 .lora-image-dialog .lora-image-dialog-close {
-  position: static;
-  width: auto;
-  min-height: 36px;
-  padding: 0 12px;
-  border-radius: 9px;
-  background: #334155;
-  border-color: #94a3b8;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, .92);
+  border: 1px solid rgba(255, 255, 255, .68);
   color: #fff;
-  font-size: 14px;
+  font-size: 28px;
   font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
 }
+.lora-image-dialog .lora-image-dialog-close:hover { background: #7f1d1d; }
 
 @media (max-width: 640px) {
-  .lora-image-dialog { width: calc(100vw - 24px); max-width: calc(100vw - 24px); }
-  .lora-image-dialog img { max-height: calc(100vh - 88px); }
+  .lora-image-dialog { padding: 12px; }
+  .lora-image-dialog-content, .lora-image-dialog img { max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); }
 }
 
 /* ─── 紧凑工具栏体系（v1.9.0） ─── */

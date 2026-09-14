@@ -109,12 +109,12 @@
   <button type="button" class="btn-reset-filter" onclick="clearLoraFilters()">清空所有筛选</button>
 </div>
 
-<dialog id="loraImageDialog" class="lora-image-dialog">
-  <div class="lora-image-dialog-toolbar">
-    <button type="button" class="lora-image-dialog-close" onclick="document.getElementById('loraImageDialog').close()">关闭预览 ×</button>
+<div id="loraImageDialog" class="lora-image-dialog" role="dialog" aria-modal="true" aria-label="LoRA 预览图" hidden onclick="closeLoraPreview(event)">
+  <div class="lora-image-dialog-content" onclick="event.stopPropagation()">
+    <button type="button" class="lora-image-dialog-close" onclick="closeLoraPreview()" aria-label="关闭预览">×</button>
+    <img id="loraImageDialogImage" alt="完整预览图">
   </div>
-  <img id="loraImageDialogImage" alt="完整预览图">
-</dialog>
+</div>
 
 <script>
 function sendLoraToWorkbench(name, weight, triggers) {
@@ -230,8 +230,19 @@ function openLoraPreview(image) {
   const target = document.getElementById('loraImageDialogImage');
   target.src = image.currentSrc || image.src;
   target.alt = image.alt || '完整预览图';
-  dialog.showModal();
+  dialog.hidden = false;
+  document.body.classList.add('lora-preview-open');
 }
+
+function closeLoraPreview(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById('loraImageDialog').hidden = true;
+  document.body.classList.remove('lora-preview-open');
+}
+
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') closeLoraPreview();
+});
 
 // 只把 safetensors header（8 字节长度 + JSON）过网，大文件本体不上传
 async function readSafetensorsHeader(file) {
