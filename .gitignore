@@ -5,6 +5,8 @@ __pycache__/
 venv/
 *.sqlite3
 *.sqlite3-*
+*.db
+*.bak
 tag_library.json
 tag_manager/gallery/*
 !tag_manager/gallery/.gitkeep

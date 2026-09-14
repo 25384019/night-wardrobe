@@ -10,7 +10,9 @@ from starlette.testclient import TestClient
 from tag_manager.app import app
 from tag_manager.db import connect, init_db
 from tag_manager.gallery import GALLERY_DIR
+from tag_manager.gallery import find_ksampler_connections
 from tag_manager.outputs_service import (
+    classify_prompt_safety,
     extract_file_date_and_time,
     favorite_to_gallery,
     get_configured_output_dir,
@@ -88,6 +90,66 @@ class TestOutputsFeature(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("生图查看", resp.text)
         self.assertIn("日期归档", resp.text)
+        self.assertIn("内容级别", resp.text)
+        self.assertIn("级别设置", resp.text)
+        self.assertIn("自定义 NSFW 词", resp.text)
+        self.assertIn("解析新增图源数据", resp.text)
+        self.assertIn("WD14 评级新增图片", resp.text)
+        self.assertIn("手动修改评级", resp.text)
+
+    def test_manual_safety_override_keeps_user_choice(self):
+        with connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO output_images (rel_path, filename, file_date, safety_level, safety_source)
+                VALUES ('manual_rating.png', 'manual_rating.png', '2026-09-14', 'normal', 'WD14+图源')
+                """
+            )
+            image_id = conn.execute("SELECT id FROM output_images WHERE rel_path = 'manual_rating.png'").fetchone()[0]
+
+        response = self.client.post(f"/api/outputs/{image_id}/safety", json={"level": "nsfw"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["safety_level"], "nsfw")
+
+        detail = get_output_image_detail(image_id=image_id)
+        self.assertEqual(detail["safety_level"], "nsfw")
+        self.assertEqual(detail["safety_source"], "手动")
+
+    def test_prompt_safety_uses_positive_prompt_only(self):
+        self.assertEqual(classify_prompt_safety("1girl, school uniform, smile"), "normal")
+        self.assertEqual(classify_prompt_safety("1girl, bikini, beach"), "suspicious")
+        self.assertEqual(classify_prompt_safety("1girl, nude, nipples"), "nsfw")
+        self.assertEqual(classify_prompt_safety(""), "suspicious")
+
+    def test_gallery_source_prompt_flows_through_show_text_and_concat(self):
+        graph = {
+            "1": {"class_type": "KSampler", "inputs": {"positive": ["2", 0], "negative": ["3", 0]}},
+            "2": {"class_type": "CLIPTextEncode", "inputs": {"text": ["4", 0]}},
+            "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "worst quality, low quality"}},
+            "4": {"class_type": "StringConcatenate", "inputs": {"string_a": ["5", 0], "string_b": ["7", 0], "delimiter": ", "}},
+            "5": {"class_type": "ShowText|pysssss", "inputs": {"text": ["6", 1]}},
+            "6": {"class_type": "DanbooruGalleryNode", "inputs": {"selection_data": '{"selections":[{"prompt":"1girl, completely nude, pussy"}]}'}},
+            "7": {"class_type": "PrimitiveStringMultiline", "inputs": {"value": "masterpiece, best quality"}},
+        }
+        positive, negative = find_ksampler_connections(graph)
+        self.assertEqual(positive, "1girl, completely nude, pussy, masterpiece, best quality")
+        self.assertEqual(negative, "worst quality, low quality")
+
+    def test_prompt_safety_handles_corrupt_source_delimiters(self):
+        self.assertEqual(classify_prompt_safety("masterpiece��pussy��@mm"), "nsfw")
+        self.assertEqual(classify_prompt_safety("masterpiece，pussy，@mm"), "nsfw")
+
+    def test_show_text_prefers_longer_cached_tagger_output(self):
+        graph = {
+            "1": {"class_type": "KSampler", "inputs": {"positive": ["2", 0]}},
+            "2": {"class_type": "CLIPTextEncode", "inputs": {"text": ["3", 0]}},
+            "3": {"class_type": "ShowText|pysssss", "inputs": {
+                "text": ["4", 0], "text_0": "1girl, nude, pussy, spread legs"
+            }},
+            "4": {"class_type": "WD14Tagger|pysssss", "inputs": {"model": "wd-swinv2-tagger-v3"}},
+        }
+        positive, _ = find_ksampler_connections(graph)
+        self.assertEqual(positive, "1girl, nude, pussy, spread legs")
 
     def test_outputs_file_streaming_and_security(self):
         with tempfile.TemporaryDirectory() as tmpdir:

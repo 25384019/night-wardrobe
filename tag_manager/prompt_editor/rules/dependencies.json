@@ -1,0 +1,32 @@
+{
+  "classroom": [
+    "indoors"
+  ],
+  "bedroom": [
+    "indoors"
+  ],
+  "kitchen": [
+    "indoors"
+  ],
+  "office": [
+    "indoors"
+  ],
+  "library": [
+    "indoors"
+  ],
+  "beach": [
+    "outdoors"
+  ],
+  "poolside": [
+    "outdoors"
+  ],
+  "street": [
+    "outdoors"
+  ],
+  "forest": [
+    "outdoors"
+  ],
+  "rooftop": [
+    "outdoors"
+  ]
+}

@@ -146,6 +146,32 @@ def trace_node_text(prompt_data: dict, link: Any, workflow_data: dict | None = N
     if not isinstance(inputs, dict):
         return ""
 
+    # ShowText may cache only a partial value in text_0. Follow its source first.
+    if "ShowText" in ctype:
+        cached_values = [
+            value.strip() for key, value in inputs.items()
+            if key.startswith("text_") and isinstance(value, str) and value.strip()
+        ]
+        text_link = inputs.get("text")
+        if isinstance(text_link, list):
+            resolved = trace_node_text(prompt_data, text_link, workflow_data, visited)
+            candidates = [value for value in [resolved, *cached_values] if value]
+            if candidates:
+                return max(candidates, key=len)
+        if cached_values:
+            return max(cached_values, key=len)
+
+    # Gallery nodes preserve the selected source post and its original prompt.
+    selection_data = inputs.get("selection_data")
+    if isinstance(selection_data, str) and selection_data.strip():
+        try:
+            selections = json.loads(selection_data).get("selections", [])
+        except (json.JSONDecodeError, AttributeError):
+            selections = []
+        prompts = [item.get("prompt", "").strip() for item in selections if isinstance(item, dict) and item.get("prompt")]
+        if prompts:
+            return ", ".join(prompts)
+
     # PromptBuilder: slot 0 is positive, slot 1 is negative
     if "PromptBuilder" in ctype:
         if slot == 0 and "positive_prompt" in inputs:
@@ -160,7 +186,7 @@ def trace_node_text(prompt_data: dict, link: Any, workflow_data: dict | None = N
                 return val.strip()
             return trace_node_text(prompt_data, val, workflow_data, visited)
 
-    # PrimitiveStringMultiline, PrimitiveNode, ShowText, Text, String, etc.
+    # PrimitiveStringMultiline, PrimitiveNode, Text, String, etc.
     for val_key in ("value", "text", "string", "prompt", "positive_prompt", "negative_prompt"):
         val = inputs.get(val_key)
         if isinstance(val, str) and val.strip():

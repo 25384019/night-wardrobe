@@ -1,0 +1,609 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="prompt-surgeon-page-wrap">
+  <!-- 顶部信息栏 -->
+  <header class="surgeon-studio-topbar" style="margin-bottom: 16px; border-radius: 16px;">
+    <div class="studio-topbar-left">
+      <a href="/outputs" class="btn btn-sm btn-secondary studio-back-btn" title="返回生图查看列表">
+        ← 返回生图查看
+      </a>
+      <div class="studio-img-info">
+        <img id="studio-thumb" class="studio-thumb" src="/outputs/file?path={{ image.rel_path | urlpath }}" alt="thumbnail">
+        <div class="studio-meta-text">
+          <div class="studio-filename" id="studio-filename">{{ image.filename }}</div>
+          <div class="studio-subinfo" id="studio-subinfo">
+            {{ image.file_date }} · {% if image.width and image.height %}{{ image.width }}×{{ image.height }}{% else %}原图{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="studio-topbar-center">
+      <span class="studio-title-badge">✨ Prompt Surgeon 独立手术室</span>
+      <span class="studio-active-pill" id="studio-active-ver-pill">
+        当前激活: {% if active_version and active_version.is_original %}v0 原版{% elif active_version %}v{{ active_version.version_number }}{% else %}v0 原版{% endif %}
+      </span>
+    </div>
+    <div class="studio-topbar-right">
+      <button type="button" class="btn-ai-key-toggle" onclick="toggleStudioKeyPanel()" title="设置 DeepSeek API Key">
+        <span id="studio-key-indicator">🔑 Key 设置</span>
+      </button>
+      <a href="/outputs" class="studio-close-icon" title="关闭并返回">&times;</a>
+    </div>
+  </header>
+
+  <!-- Key 设置折叠面板 -->
+  <div id="studio-key-panel" class="ai-key-panel" style="display:none; margin-bottom: 14px;">
+    <div class="ai-key-row">
+      <input type="password" id="input-deepseek-key" class="input input-xs ai-key-input" placeholder="输入 DeepSeek API Key (sk-...)" autocomplete="off">
+      <button type="button" class="btn btn-secondary btn-xs" onclick="saveStudioKey()">保存 Key</button>
+    </div>
+    <p class="ai-key-hint">💡 提示词手术刀默认调用 DeepSeek 官方 API (`deepseek-chat`)。设置后自动持久化到系统配置。</p>
+  </div>
+
+  <!-- 三栏核心手术台 -->
+  <main class="surgeon-studio-body" style="height: calc(100vh - 120px);">
+    <!-- 左栏：版本分支树与时间线 -->
+    <aside class="studio-col studio-tree-col">
+      <div class="studio-col-header">
+        <span class="studio-col-title">📜 版本分支树</span>
+        <span class="badge" id="studio-ver-count-badge">{{ versions|length }} 个版本</span>
+      </div>
+      <div class="studio-tree-actions">
+        <button type="button" class="btn btn-xs btn-secondary" style="width:100%;" onclick="restoreStudioOriginal()" title="将当前工作提示词一键恢复到 v0 Original 事实">
+          🔄 恢复 v0 原版
+        </button>
+      </div>
+      <div class="studio-versions-list" id="studio-versions-list">
+        <!-- 动态渲染版本节点 -->
+      </div>
+    </aside>
+
+    <!-- 中栏：变动分析 (Tag Diff) 与对比 -->
+    <section class="studio-col studio-diff-col">
+      <div class="studio-col-header">
+        <span class="studio-col-title">🔍 变动分析 (Tag Diff)</span>
+        <div class="studio-diff-tabs">
+          <button type="button" class="studio-tab-btn active" id="tab-btn-studio-chips" onclick="switchStudioTab('chips')">Tag 增删</button>
+          <button type="button" class="studio-tab-btn" id="tab-btn-studio-compare" onclick="switchStudioTab('compare')">完整 Prompt 对比</button>
+        </div>
+      </div>
+
+      <!-- 四色差异统计条 -->
+      <div class="studio-summary-bar">
+        <span class="surgeon-summary-pill pill-removed" id="studio-pill-removed">🔴 移除: 0</span>
+        <span class="surgeon-summary-pill pill-added" id="studio-pill-added">🟢 新增: 0</span>
+        <span class="surgeon-summary-pill pill-locked" id="studio-pill-locked">🔵 锁定: 0</span>
+        <span class="surgeon-summary-pill pill-kept" id="studio-pill-kept">⚪ 保留: 0</span>
+      </div>
+
+      <!-- Tab 1: Tag 增删差异视图 -->
+      <div id="studio-view-chips" class="studio-diff-view active">
+        <div id="studio-diff-empty" class="studio-diff-empty">
+          <div class="empty-icon">⚡</div>
+          <div>在右侧输入修改需求并点击“预览手术 Diff”，在此查看标签级变动分析</div>
+        </div>
+        <div id="studio-diff-grid" class="surgeon-diff-grid"></div>
+      </div>
+
+      <!-- Tab 2: 完整 Prompt 左右/上下对比视图 -->
+      <div id="studio-view-compare" class="studio-diff-view" style="display:none;">
+        <div class="studio-compare-box">
+          <div class="compare-label">修改后生成的目标提示词：</div>
+          <textarea id="studio-diff-final-textarea" class="modal-textarea" rows="8" readonly placeholder="执行 Diff 后在此查看修改后的完整 Prompt..."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右栏：手术操作台 -->
+    <section class="studio-col studio-ops-col">
+      <div class="studio-col-header">
+        <span class="studio-col-title">🎛️ 手术操作台</span>
+        <span class="studio-branch-indicator" id="studio-branch-target-pill">基准: v0</span>
+      </div>
+
+      <!-- v0 原始事实只读展示盒 -->
+      <div class="studio-fact-box">
+        <div class="fact-box-title">
+          <span>🔒 v0 Original (图片原始事实 · 永久只读)</span>
+          <button type="button" class="btn-copy-chip" onclick="copyStudioOrigPrompt()">📋 复制</button>
+        </div>
+        <textarea id="studio-orig-prompt-text" class="studio-readonly-prompt" rows="2" readonly>{{ v0.positive_prompt if v0 else (image.original_positive_prompt or image.positive_prompt) }}</textarea>
+      </div>
+
+      <!-- 当前工作 Prompt 展示盒 -->
+      <div class="studio-working-box">
+        <div class="fact-box-title">
+          <span>⚡ 当前生效 Working Prompt</span>
+          <div style="display:flex;gap:4px;">
+            <button type="button" class="btn-copy-chip" onclick="copyStudioWorkingPrompt()">📋 复制</button>
+            <button type="button" class="btn-copy-chip" onclick="appendStudioPromptToWorkbench()">⚡ 填入工作台</button>
+          </div>
+        </div>
+        <textarea id="studio-working-prompt-text" class="studio-working-prompt" rows="3">{{ active_version.positive_prompt if active_version else image.positive_prompt }}</textarea>
+      </div>
+
+      <!-- 自然语言指令与作用域控制 -->
+      <div class="studio-control-card">
+        <!-- 作用域选择 -->
+        <div class="surgeon-scopes-row" style="margin-bottom:8px;">
+          <span class="surgeon-scope-label">作用域：</span>
+          <button type="button" class="surgeon-scope-chip active" data-scope="" onclick="selectStudioScope(this, '')">全部</button>
+          <button type="button" class="surgeon-scope-chip" data-scope="clothing" onclick="selectStudioScope(this, 'clothing')">只改衣服</button>
+          <button type="button" class="surgeon-scope-chip" data-scope="hair" onclick="selectStudioScope(this, 'hair')">只改发型</button>
+          <button type="button" class="surgeon-scope-chip" data-scope="pose" onclick="selectStudioScope(this, 'pose')">改姿势</button>
+          <button type="button" class="surgeon-scope-chip" data-scope="background" onclick="selectStudioScope(this, 'background')">改背景</button>
+        </div>
+
+        <!-- 角色保护与成人模式开关 -->
+        <div class="studio-guard-row" style="margin-bottom:8px;">
+          <label class="studio-chk-label">
+            <input type="checkbox" id="studio-chk-preserve-identity" checked> 🛡️ 保持角色身份
+          </label>
+          <label class="studio-chk-label">
+            <input type="checkbox" id="studio-chk-adult-mode"> 🔞 成人模式
+          </label>
+        </div>
+
+        <!-- 高频预设词包 -->
+        <div class="studio-quick-chips">
+          <span class="surgeon-quick-chip" onclick="applyStudioQuickInstruction('换成短发')">短发</span>
+          <span class="surgeon-quick-chip" onclick="applyStudioQuickInstruction('换成银白色头发')">银发</span>
+          <span class="surgeon-quick-chip" onclick="applyStudioQuickInstruction('穿白色粗针织毛衣和蓝色牛仔裤')">白毛衣牛仔裤</span>
+          <span class="surgeon-quick-chip" onclick="applyStudioQuickInstruction('坐在教室窗边，午后阳光照射')">教室窗边坐姿</span>
+          <span class="surgeon-quick-chip" onclick="applyStudioQuickInstruction('换成清凉比基尼泳装')">比基尼泳装</span>
+          <span class="surgeon-quick-chip" onclick="applyStudioQuickInstruction('去掉帽子')">去掉帽子</span>
+        </div>
+
+        <!-- 输入框与操作按钮 -->
+        <div class="studio-input-area">
+          <textarea id="studio-instruction" class="studio-instruction-input" rows="3"
+                    placeholder="输入自然语言修改需求：如“把长发换成短发，衣服换成白毛衣坐在教室窗边”..."></textarea>
+          <div class="studio-btn-row">
+            <button type="button" class="btn-surgeon-preview" id="btn-studio-preview" onclick="previewStudioSurgeonEdit()">
+              预览手术 Diff ⚡
+            </button>
+            <button type="button" class="btn-studio-apply" id="btn-studio-apply" onclick="applyStudioNewVersion()">
+              💾 保存为新版本 (Apply)
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 预装载服务端数据 -->
+<script>
+  window.SURGEON_IMAGE = {{ image | tojson }};
+  window.SURGEON_VERSIONS = {{ versions | tojson }};
+  window.SURGEON_ACTIVE_VER_ID = {{ initial_version_id | tojson }};
+</script>
+
+<script>
+(function() {
+  var imageId = window.SURGEON_IMAGE ? window.SURGEON_IMAGE.id : null;
+  var currentVersionsList = window.SURGEON_VERSIONS || [];
+  var studioParentVersionId = window.SURGEON_ACTIVE_VER_ID || (currentVersionsList[0] ? currentVersionsList[0].id : null);
+  var studioDiffResult = null;
+  var studioAllowedScope = '';
+
+  function init() {
+    checkStudioKeyStatus();
+    renderStudioVersionsList(currentVersionsList);
+    updateBranchTargetPill();
+
+    var inst = document.getElementById('studio-instruction');
+    if (inst) {
+      inst.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          previewStudioSurgeonEdit();
+        }
+      });
+    }
+  }
+
+  function checkStudioKeyStatus() {
+    fetch('/api/outputs/ai-tag-status')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var ind = document.getElementById('studio-key-indicator');
+        if (ind) {
+          if (data && data.has_key) {
+            ind.textContent = '🔑 DeepSeek 已就绪';
+            ind.style.color = '#34d399';
+          } else {
+            ind.textContent = '🔑 未设置 Key';
+            ind.style.color = '#f87171';
+          }
+        }
+      })
+      .catch(function() {});
+  }
+
+  window.toggleStudioKeyPanel = function() {
+    var p = document.getElementById('studio-key-panel');
+    if (!p) return;
+    p.style.display = p.style.display === 'none' ? 'block' : 'none';
+  };
+
+  window.saveStudioKey = function() {
+    var k = (document.getElementById('input-deepseek-key').value || '').trim();
+    if (!k) {
+      if (window.showToast) window.showToast('请输入有效的 API Key', 'error');
+      return;
+    }
+    fetch('/api/outputs/ai-modify-tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: '', instruction: '', api_key: k })
+    }).then(function() {
+      if (window.showToast) window.showToast('DeepSeek API Key 已保存！', 'success');
+      document.getElementById('studio-key-panel').style.display = 'none';
+      checkStudioKeyStatus();
+    });
+  };
+
+  function updateBranchTargetPill() {
+    var targetVer = currentVersionsList.find(function(v) { return v.id === studioParentVersionId; });
+    var pill = document.getElementById('studio-branch-target-pill');
+    if (pill) {
+      if (targetVer) {
+        pill.textContent = '基准: ' + (targetVer.is_original ? 'v0 原版' : ('v' + targetVer.version_number));
+      } else {
+        pill.textContent = '基准: v0 原版';
+      }
+    }
+  }
+
+  function renderStudioVersionsList(versions) {
+    var list = document.getElementById('studio-versions-list');
+    if (!list) return;
+    list.innerHTML = '';
+    var countBadge = document.getElementById('studio-ver-count-badge');
+    if (countBadge) countBadge.textContent = versions.length + ' 个版本';
+
+    versions.forEach(function(ver) {
+      var card = document.createElement('div');
+      card.className = 'studio-version-card' + (ver.id === studioParentVersionId ? ' is-active' : '');
+      card.setAttribute('data-version-id', ver.id);
+
+      var topRow = document.createElement('div');
+      topRow.className = 'studio-version-top';
+
+      var verTag = document.createElement('span');
+      verTag.className = 'studio-ver-tag' + (ver.is_original ? ' v0' : '') + (ver.is_current ? ' active' : '');
+      verTag.textContent = ver.is_original ? '🔒 v0 · Original' : ('v' + ver.version_number + (ver.is_current ? ' · 当前' : ''));
+
+      var timeSpan = document.createElement('span');
+      timeSpan.className = 'studio-ver-time';
+      timeSpan.textContent = ver.created_at ? (ver.created_at.split(' ')[1] || ver.created_at) : '';
+
+      topRow.appendChild(verTag);
+      topRow.appendChild(timeSpan);
+      card.appendChild(topRow);
+
+      var instDiv = document.createElement('div');
+      instDiv.className = 'studio-ver-instruction';
+      instDiv.textContent = ver.instruction || (ver.is_original ? '原始图片元数据' : '版本修改');
+      instDiv.title = ver.positive_prompt;
+      card.appendChild(instDiv);
+
+      var btnRow = document.createElement('div');
+      btnRow.className = 'studio-version-btns';
+
+      var branchBtn = document.createElement('button');
+      branchBtn.type = 'button';
+      branchBtn.className = 'studio-vbtn branch';
+      branchBtn.textContent = '🌱 分支修改';
+      branchBtn.onclick = function(e) {
+        e.stopPropagation();
+        branchFromStudioVersion(ver.id, ver.version_number);
+      };
+      btnRow.appendChild(branchBtn);
+
+      if (!ver.is_current) {
+        var setCurBtn = document.createElement('button');
+        setCurBtn.type = 'button';
+        setCurBtn.className = 'studio-vbtn cur';
+        setCurBtn.textContent = '设为当前';
+        setCurBtn.onclick = function(e) {
+          e.stopPropagation();
+          setStudioCurrentVersion(ver.id, ver.version_number);
+        };
+        btnRow.appendChild(setCurBtn);
+      }
+
+      if (!ver.is_original && ver.version_number !== 0) {
+        var delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'studio-vbtn del';
+        delBtn.textContent = '删除';
+        delBtn.onclick = function(e) {
+          e.stopPropagation();
+          deleteStudioVersion(ver.id, ver.version_number);
+        };
+        btnRow.appendChild(delBtn);
+      }
+
+      card.appendChild(btnRow);
+
+      card.onclick = function() {
+        inspectStudioVersion(ver);
+      };
+
+      list.appendChild(card);
+    });
+  }
+
+  function inspectStudioVersion(ver) {
+    studioParentVersionId = ver.id;
+    updateBranchTargetPill();
+    document.getElementById('studio-working-prompt-text').value = ver.positive_prompt;
+    renderStudioVersionsList(currentVersionsList);
+    if (window.showToast) window.showToast('已选中版本 ' + (ver.is_original ? 'v0' : ('v' + ver.version_number)) + ' 作为修改基准', 'info');
+  }
+
+  window.branchFromStudioVersion = function(verId, verNum) {
+    studioParentVersionId = verId;
+    updateBranchTargetPill();
+    renderStudioVersionsList(currentVersionsList);
+    var ver = currentVersionsList.find(function(v) { return v.id === verId; });
+    if (ver) {
+      document.getElementById('studio-working-prompt-text').value = ver.positive_prompt;
+    }
+    var inst = document.getElementById('studio-instruction');
+    if (inst) {
+      inst.focus();
+    }
+    if (window.showToast) window.showToast('🌱 已选定以 v' + verNum + ' 为父级分支，请在下方输入新指令', 'success');
+  };
+
+  window.setStudioCurrentVersion = function(verId, verNum) {
+    fetch('/api/prompt/versions/set_current', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_id: imageId, version_id: verId })
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        var vStr = (data.is_original || data.version_number === 0) ? 'v0 原版' : ('v' + data.version_number);
+        if (window.showToast) window.showToast('已成功切换当前生效版本至 ' + vStr + '（未产生新版本）', 'success');
+        document.getElementById('studio-working-prompt-text').value = data.positive_prompt;
+        var pill = document.getElementById('studio-active-ver-pill');
+        if (pill) pill.textContent = '当前激活: ' + vStr;
+        loadStudioVersions();
+      } else {
+        if (window.showToast) window.showToast('切换版本失败', 'error');
+      }
+    })
+    .catch(function(err) {
+      if (window.showToast) window.showToast('请求异常：' + err.message, 'error');
+    });
+  };
+
+  window.deleteStudioVersion = function(verId, verNum) {
+    if (!confirm('确定要删除派生版本 v' + verNum + ' 吗？此操作不可逆。')) return;
+    fetch('/api/prompt/versions/' + encodeURIComponent(verId), {
+      method: 'DELETE'
+    })
+    .then(function(res) {
+      if (res.status === 403) {
+        throw new Error('403 Forbidden: v0 Original 事实受到严格保护，禁止删除！');
+      }
+      return res.json();
+    })
+    .then(function(data) {
+      if (data.success) {
+        if (window.showToast) window.showToast('已删除版本 v' + verNum, 'success');
+        loadStudioVersions();
+      } else {
+        if (window.showToast) window.showToast('删除失败', 'error');
+      }
+    })
+    .catch(function(err) {
+      if (window.showToast) window.showToast(err.message, 'error');
+    });
+  };
+
+  window.restoreStudioOriginal = function() {
+    if (!confirm('确定要将当前工作提示词一键恢复到 v0 Original 原始事实吗？（不会删除其他历史版本）')) return;
+    fetch('/api/prompt/versions/restore_original/' + encodeURIComponent(imageId), {
+      method: 'POST'
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        if (window.showToast) window.showToast('已成功恢复到 v0 Original 原始提示词！', 'success');
+        document.getElementById('studio-working-prompt-text').value = data.positive_prompt;
+        var pill = document.getElementById('studio-active-ver-pill');
+        if (pill) pill.textContent = '当前激活: v0 原版';
+        loadStudioVersions();
+      } else {
+        if (window.showToast) window.showToast('恢复原版失败', 'error');
+      }
+    })
+    .catch(function(err) {
+      if (window.showToast) window.showToast('恢复异常：' + err.message, 'error');
+    });
+  };
+
+  function loadStudioVersions() {
+    fetch('/api/prompt/versions/' + encodeURIComponent(imageId))
+      .then(function(r) { return r.json(); })
+      .then(function(versions) {
+        if (!Array.isArray(versions)) versions = [];
+        currentVersionsList = versions;
+        renderStudioVersionsList(versions);
+        updateBranchTargetPill();
+      })
+      .catch(function() {});
+  }
+
+  window.selectStudioScope = function(el, scope) {
+    studioAllowedScope = scope;
+    document.querySelectorAll('.studio-control-card .surgeon-scope-chip').forEach(function(c) {
+      c.classList.remove('active');
+    });
+    el.classList.add('active');
+  };
+
+  window.applyStudioQuickInstruction = function(text) {
+    var input = document.getElementById('studio-instruction');
+    if (!input) return;
+    input.value = text;
+    previewStudioSurgeonEdit();
+  };
+
+  window.switchStudioTab = function(tabName) {
+    var btnChips = document.getElementById('tab-btn-studio-chips');
+    var btnCompare = document.getElementById('tab-btn-studio-compare');
+    var viewChips = document.getElementById('studio-view-chips');
+    var viewCompare = document.getElementById('studio-view-compare');
+
+    if (tabName === 'chips') {
+      btnChips.classList.add('active');
+      btnCompare.classList.remove('active');
+      viewChips.style.display = 'block';
+      viewCompare.style.display = 'none';
+    } else {
+      btnChips.classList.remove('active');
+      btnCompare.classList.add('active');
+      viewChips.style.display = 'none';
+      viewCompare.style.display = 'block';
+    }
+  };
+
+  window.previewStudioSurgeonEdit = function() {
+    var instruction = (document.getElementById('studio-instruction').value || '').trim();
+    if (!instruction) {
+      if (window.showToast) window.showToast('请输入自然语言修改指令', 'info');
+      document.getElementById('studio-instruction').focus();
+      return;
+    }
+    var basePrompt = (document.getElementById('studio-working-prompt-text').value || '').trim();
+
+    var payload = {
+      image_id: imageId,
+      prompt: basePrompt,
+      instruction: instruction,
+      allowed_scopes: studioAllowedScope ? [studioAllowedScope] : null,
+      locked_tags: [],
+      preserve_identity: document.getElementById('studio-chk-preserve-identity').checked,
+      adult_mode: document.getElementById('studio-chk-adult-mode').checked,
+      age_status: 'unknown',
+      prompt_version: 0
+    };
+
+    if (window.showToast) window.showToast('Prompt Surgeon 正在编译 Diff...', 'info');
+
+    fetch('/api/prompt/edit/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (!data.success) {
+        if (window.showToast) window.showToast('预览失败：' + (data.message || data.error), 'error');
+        return;
+      }
+      studioDiffResult = data;
+      var empty = document.getElementById('studio-diff-empty');
+      if (empty) empty.style.display = 'none';
+
+      var s = data.diff_summary || {};
+      document.getElementById('studio-pill-removed').textContent = '🔴 移除: ' + (s.removed ? s.removed.length : 0);
+      document.getElementById('studio-pill-added').textContent = '🟢 新增: ' + (s.added ? s.added.length : 0);
+      document.getElementById('studio-pill-locked').textContent = '🔵 锁定: ' + (s.locked ? s.locked.length : 0);
+      document.getElementById('studio-pill-kept').textContent = '⚪ 保留: ' + (s.kept ? s.kept.length : 0);
+
+      var grid = document.getElementById('studio-diff-grid');
+      grid.innerHTML = '';
+      if (data.diff_tags) {
+        data.diff_tags.forEach(function(item) {
+          var chip = document.createElement('span');
+          chip.className = 'diff-chip diff-chip-' + item.action;
+          var prefix = item.action === 'remove' ? '🔴 -' : (item.action === 'add' ? '🟢 +' : (item.action === 'lock' ? '🔵 📌 ' : '⚪ '));
+          chip.textContent = prefix + (item.raw || item.tag);
+          grid.appendChild(chip);
+        });
+      }
+
+      document.getElementById('studio-diff-final-textarea').value = data.edited_prompt;
+      if (window.showToast) window.showToast('✨ Diff 生成完毕，点击“保存为新版本”即可生效！', 'success');
+    })
+    .catch(function(err) {
+      if (window.showToast) window.showToast('请求异常：' + err.message, 'error');
+    });
+  };
+
+  window.applyStudioNewVersion = function() {
+    var finalPrompt = studioDiffResult ? studioDiffResult.edited_prompt : (document.getElementById('studio-working-prompt-text').value || '').trim();
+    var instText = (document.getElementById('studio-instruction').value || '').trim() || 'Prompt 手术刀编辑';
+
+    var payload = {
+      image_id: imageId,
+      positive_prompt: finalPrompt,
+      instruction: instText,
+      parent_version_id: studioParentVersionId,
+      diff_summary: studioDiffResult ? studioDiffResult.diff_summary : null,
+      model: 'deepseek'
+    };
+
+    fetch('/api/prompt/versions/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(data) {
+      if (data.success) {
+        if (window.showToast) window.showToast('💾 已成功保存并激活新版本 v' + data.version_number + '！', 'success');
+        document.getElementById('studio-working-prompt-text').value = data.positive_prompt;
+        var pill = document.getElementById('studio-active-ver-pill');
+        if (pill) pill.textContent = '当前激活: v' + data.version_number;
+        document.getElementById('studio-instruction').value = '';
+        studioDiffResult = null;
+        loadStudioVersions();
+      } else {
+        if (window.showToast) window.showToast('保存新版本失败', 'error');
+      }
+    })
+    .catch(function(err) {
+      if (window.showToast) window.showToast('网络请求异常：' + err.message, 'error');
+    });
+  };
+
+  window.copyStudioOrigPrompt = function() {
+    var text = document.getElementById('studio-orig-prompt-text').value;
+    navigator.clipboard.writeText(text).then(function() {
+      if (window.showToast) window.showToast('已复制 v0 原始提示词', 'success');
+    });
+  };
+
+  window.copyStudioWorkingPrompt = function() {
+    var text = document.getElementById('studio-working-prompt-text').value;
+    navigator.clipboard.writeText(text).then(function() {
+      if (window.showToast) window.showToast('已复制当前工作提示词', 'success');
+    });
+  };
+
+  window.appendStudioPromptToWorkbench = function() {
+    var text = document.getElementById('studio-working-prompt-text').value;
+    try {
+      var key = 'current_workbench_tags';
+      var old = localStorage.getItem(key) || '';
+      var combined = old ? (old + ', ' + text) : text;
+      localStorage.setItem(key, combined);
+      if (window.showToast) window.showToast('⚡ 提示词已追加到工坊工作台！', 'success');
+    } catch(e) {
+      if (window.showToast) window.showToast('写入工作台失败', 'error');
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+{% endblock %}

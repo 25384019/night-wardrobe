@@ -17,8 +17,9 @@ SQLITE_BUSY_TIMEOUT_MS = int(SQLITE_TIMEOUT_SECONDS * 1000)
 
 
 @contextmanager
-def connect(db_path: Path = DB_PATH):
-    conn = sqlite3.connect(db_path, timeout=SQLITE_TIMEOUT_SECONDS)
+def connect(db_path: Path | str | None = None):
+    path = db_path if db_path is not None else DB_PATH
+    conn = sqlite3.connect(path, timeout=SQLITE_TIMEOUT_SECONDS)
     conn.row_factory = sqlite3.Row
     conn.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
     conn.execute("PRAGMA foreign_keys = ON")
@@ -32,8 +33,9 @@ def connect(db_path: Path = DB_PATH):
         conn.close()
 
 
-def init_db(db_path: Path = DB_PATH) -> None:
-    with connect(db_path) as conn:
+def init_db(db_path: Path | str | None = None) -> None:
+    path = db_path if db_path is not None else DB_PATH
+    with connect(path) as conn:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(
             """
@@ -301,6 +303,86 @@ def init_db(db_path: Path = DB_PATH) -> None:
         character_columns = {row["name"] for row in conn.execute("PRAGMA table_info(characters)")}
         if "preview_image" not in character_columns:
             conn.execute("ALTER TABLE characters ADD COLUMN preview_image TEXT DEFAULT ''")
+        output_columns = {row["name"] for row in conn.execute("PRAGMA table_info(output_images)")}
+        if "safety_level" not in output_columns:
+            conn.execute("ALTER TABLE output_images ADD COLUMN safety_level TEXT DEFAULT ''")
+        if "safety_source" not in output_columns:
+            conn.execute("ALTER TABLE output_images ADD COLUMN safety_source TEXT DEFAULT ''")
+        if "prompt_version" not in output_columns:
+            conn.execute("ALTER TABLE output_images ADD COLUMN prompt_version INTEGER NOT NULL DEFAULT 0")
+        if "age_status" not in output_columns:
+            conn.execute("ALTER TABLE output_images ADD COLUMN age_status TEXT NOT NULL DEFAULT 'unknown'")
+        if "original_positive_prompt" not in output_columns:
+            conn.execute("ALTER TABLE output_images ADD COLUMN original_positive_prompt TEXT DEFAULT ''")
+        if "original_negative_prompt" not in output_columns:
+            conn.execute("ALTER TABLE output_images ADD COLUMN original_negative_prompt TEXT DEFAULT ''")
+        if "current_prompt_version_id" not in output_columns:
+            conn.execute("ALTER TABLE output_images ADD COLUMN current_prompt_version_id INTEGER")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_edit_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_id INTEGER NOT NULL,
+                version INTEGER NOT NULL,
+                instruction TEXT DEFAULT '',
+                edit_scopes TEXT DEFAULT '[]',
+                positive_prompt_before TEXT NOT NULL,
+                positive_prompt_after TEXT NOT NULL,
+                negative_prompt_before TEXT DEFAULT '',
+                negative_prompt_after TEXT DEFAULT '',
+                diff_json TEXT NOT NULL DEFAULT '{}',
+                applied_by TEXT DEFAULT 'user',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (image_id) REFERENCES output_images(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_prompt_edit_history_image_version
+            ON prompt_edit_history(image_id, version DESC)
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prompt_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_id INTEGER NOT NULL,
+                version_number INTEGER NOT NULL,
+                parent_version_id INTEGER,
+                positive_prompt TEXT NOT NULL,
+                negative_prompt TEXT DEFAULT '',
+                instruction TEXT DEFAULT '',
+                remove_tags_json TEXT DEFAULT '[]',
+                add_tags_json TEXT DEFAULT '[]',
+                locked_tags_json TEXT DEFAULT '[]',
+                diff_json TEXT DEFAULT '{}',
+                model TEXT DEFAULT 'deepseek',
+                applied_by TEXT DEFAULT 'user',
+                is_original INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (image_id) REFERENCES output_images(id) ON DELETE CASCADE,
+                FOREIGN KEY (parent_version_id) REFERENCES prompt_versions(id) ON DELETE SET NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_prompt_versions_image_ver
+            ON prompt_versions(image_id, version_number DESC)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_prompt_versions_parent
+            ON prompt_versions(parent_version_id)
+            """
+        )
+        try:
+            from tag_manager.prompt_editor.migration import migrate_prompt_versions
+            migrate_prompt_versions(conn)
+        except Exception:
+            pass
         default_categories = [
             ("1.镜头", "tag", 10),
             ("2.人物", "tag", 20),
@@ -338,8 +420,22 @@ def init_db(db_path: Path = DB_PATH) -> None:
             (DEFAULT_SYSTEM_PROMPT,),
         )
         ensure_gallery_image_columns(conn)
+        ensure_output_images_columns(conn)
         ensure_video_decrypt_job_columns(conn)
         ensure_llm_settings_columns(conn)
+
+
+def ensure_output_images_columns(conn: sqlite3.Connection) -> None:
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(output_images)").fetchall()}
+    columns = {
+        "safety_level": "TEXT DEFAULT ''",
+        "safety_source": "TEXT DEFAULT ''",
+        "prompt_version": "INTEGER NOT NULL DEFAULT 1",
+        "age_status": "TEXT NOT NULL DEFAULT 'unknown'",
+    }
+    for name, definition in columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE output_images ADD COLUMN {name} {definition}")
 
 
 def ensure_gallery_image_columns(conn: sqlite3.Connection) -> None:

@@ -1,0 +1,34 @@
+{
+  "species_traits": [
+    "pointy ears",
+    "animal ears",
+    "cat ears",
+    "fox ears",
+    "bunny ears",
+    "wolf ears",
+    "dog ears",
+    "horns",
+    "demon horns",
+    "dragon horns",
+    "wings",
+    "angel wings",
+    "demon wings",
+    "tail",
+    "cat tail",
+    "fox tail",
+    "wolf tail",
+    "dragon tail",
+    "halo"
+  ],
+  "franchises": [
+    "genshin impact",
+    "honkai: star rail",
+    "honkai impact 3rd",
+    "arknights",
+    "blue archive",
+    "fate/grand order",
+    "touhou",
+    "azur lane",
+    "hololive"
+  ]
+}

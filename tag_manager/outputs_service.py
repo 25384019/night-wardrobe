@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import threading
 from datetime import datetime, date
 from pathlib import Path
@@ -16,6 +17,48 @@ from .db import BASE_DIR, connect, init_db
 from .gallery import GALLERY_DIR, IMAGE_EXTENSIONS, extract_prompts, ingest_saved_paths, read_image_metadata, safe_gallery_relative_path
 
 _SCAN_LOCK = threading.Lock()
+_COMFY_PYTHON = BASE_DIR.parents[2] / "python" / "python.exe"
+_WD14_MODEL_DIR = BASE_DIR.parents[2] / "ComfyUI" / "custom_nodes" / "ComfyUI-WD14-Tagger" / "models"
+_SAFETY_WORKER = BASE_DIR / "local_safety_worker.py"
+_REPARSE_WATERMARK_KEY = "outputs_reparse_last_completed_at"
+_SAFETY_WATERMARK_KEY = "outputs_wd14_last_completed_at"
+
+
+def _get_processing_watermark(conn, key: str) -> str:
+    row = conn.execute("SELECT value FROM gacha_store WHERE key = ?", (key,)).fetchone()
+    return str(row["value"]) if row and row["value"] else ""
+
+
+def _set_processing_watermark(conn, key: str, value: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO gacha_store (key, value, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP
+        """,
+        (key, value),
+    )
+
+
+def _get_incremental_rows(conn, watermark_key: str, columns: str):
+    """返回上次完成后新入库或文件有变动的记录；首次启用只建立水位线。"""
+    watermark = _get_processing_watermark(conn, watermark_key)
+    if not watermark:
+        baseline = conn.execute("SELECT max(updated_at) FROM output_images").fetchone()[0] or ""
+        _set_processing_watermark(conn, watermark_key, baseline)
+        existing = conn.execute("SELECT count(*) FROM output_images").fetchone()[0]
+        return [], True, existing
+
+    rows = conn.execute(
+        f"SELECT {columns} FROM output_images WHERE updated_at > ? ORDER BY updated_at, id",
+        (watermark,),
+    ).fetchall()
+    return rows, False, 0
+
+
+def _advance_processing_watermark(conn, watermark_key: str, rows: list[Any]) -> None:
+    if rows:
+        _set_processing_watermark(conn, watermark_key, max(str(row["updated_at"]) for row in rows))
 
 
 def get_default_output_dir() -> Path:
@@ -133,13 +176,15 @@ def ingest_output_image(conn, path: Path, root: Path) -> None:
     meta = read_image_metadata(path)
     positive, negative, workflow_raw, prompt_raw, checkpoint, loras, parameters, metadata_json, metadata_source, generation_params = extract_prompts(meta)
 
-    conn.execute(
+    cur = conn.execute(
         """
         INSERT INTO output_images
             (rel_path, filename, file_date, file_time, file_mtime, file_size, width, height,
-             positive_prompt, negative_prompt, checkpoint, loras, workflow_json, prompt_json,
+             positive_prompt, negative_prompt, original_positive_prompt, original_negative_prompt,
+             prompt_version,
+             checkpoint, loras, workflow_json, prompt_json,
              parameters, generation_params, metadata_source, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(rel_path) DO UPDATE SET
             filename=excluded.filename,
             file_date=excluded.file_date,
@@ -148,8 +193,10 @@ def ingest_output_image(conn, path: Path, root: Path) -> None:
             file_size=excluded.file_size,
             width=excluded.width,
             height=excluded.height,
-            positive_prompt=excluded.positive_prompt,
-            negative_prompt=excluded.negative_prompt,
+            original_positive_prompt=excluded.original_positive_prompt,
+            original_negative_prompt=excluded.original_negative_prompt,
+            positive_prompt=CASE WHEN output_images.current_prompt_version_id IS NOT NULL AND output_images.prompt_version > 0 THEN output_images.positive_prompt ELSE excluded.positive_prompt END,
+            negative_prompt=CASE WHEN output_images.current_prompt_version_id IS NOT NULL AND output_images.prompt_version > 0 THEN output_images.negative_prompt ELSE excluded.negative_prompt END,
             checkpoint=excluded.checkpoint,
             loras=excluded.loras,
             workflow_json=excluded.workflow_json,
@@ -170,6 +217,8 @@ def ingest_output_image(conn, path: Path, root: Path) -> None:
             height,
             positive,
             negative,
+            positive,
+            negative,
             checkpoint,
             loras,
             workflow_raw,
@@ -179,6 +228,31 @@ def ingest_output_image(conn, path: Path, root: Path) -> None:
             metadata_source,
         ),
     )
+
+    img_id = cur.lastrowid
+    if not img_id:
+        r = conn.execute("SELECT id FROM output_images WHERE rel_path = ?", (rel,)).fetchone()
+        if r:
+            img_id = r[0]
+
+    if img_id:
+        v0 = conn.execute("SELECT id FROM prompt_versions WHERE image_id = ? AND version_number = 0", (img_id,)).fetchone()
+        if not v0:
+            v0_cur = conn.execute(
+                """
+                INSERT INTO prompt_versions (
+                    image_id, version_number, parent_version_id,
+                    positive_prompt, negative_prompt, instruction,
+                    is_original, applied_by
+                ) VALUES (?, 0, NULL, ?, ?, 'Original from metadata', 1, 'original')
+                """,
+                (img_id, positive, negative),
+            )
+            v0_id = v0_cur.lastrowid
+            conn.execute(
+                "UPDATE output_images SET current_prompt_version_id = ?, prompt_version = CASE WHEN prompt_version IS NULL OR prompt_version <= 0 THEN 0 ELSE prompt_version END WHERE id = ? AND (current_prompt_version_id IS NULL OR current_prompt_version_id = 0)",
+                (v0_id, img_id),
+            )
 
 
 def scan_outputs(output_dir: Path | None = None, limit_new: int | None = None) -> dict[str, int]:
@@ -304,7 +378,7 @@ def query_output_images(
         query_sql = f"""
             SELECT id, rel_path, filename, file_date, file_time, file_mtime, file_size,
                    width, height, positive_prompt, negative_prompt, checkpoint, loras,
-                   parameters, generation_params, metadata_source,
+                   parameters, generation_params, metadata_source, safety_level, safety_source,
                    CASE WHEN workflow_json != '' THEN 1 ELSE 0 END as has_workflow,
                    CASE WHEN prompt_json != '' THEN 1 ELSE 0 END as has_prompt_json
             FROM output_images
@@ -313,7 +387,10 @@ def query_output_images(
             LIMIT ? OFFSET ?
         """
         rows = conn.execute(query_sql, [*params, limit, offset]).fetchall()
-        return [dict(r) for r in rows], total_count
+        images = [dict(r) for r in rows]
+        for image in images:
+            image["safety_level"] = image.get("safety_level") or classify_prompt_safety(image.get("positive_prompt", ""))
+        return images, total_count
 
 
 def get_output_image_detail(image_id: int | None = None, rel_path: str | None = None) -> dict[str, Any] | None:
@@ -325,7 +402,109 @@ def get_output_image_detail(image_id: int | None = None, rel_path: str | None = 
             row = conn.execute("SELECT * FROM output_images WHERE rel_path = ?", (rel_path,)).fetchone()
         else:
             return None
-        return dict(row) if row else None
+        if not row:
+            return None
+        detail = dict(row)
+        detail["safety_level"] = detail.get("safety_level") or classify_prompt_safety(detail.get("positive_prompt", ""))
+        return detail
+
+
+def set_output_safety_level(image_id: int, level: str) -> dict[str, Any] | None:
+    """保存人工评级；后续自动分析不会覆盖人工确认的结果。"""
+    if level not in {"normal", "suspicious", "nsfw"}:
+        raise ValueError("评级只能是正常、可疑或 NSFW")
+    with connect() as conn:
+        updated = conn.execute(
+            "UPDATE output_images SET safety_level = ?, safety_source = '手动' WHERE id = ?",
+            (level, image_id),
+        ).rowcount
+    if not updated:
+        return None
+    return get_output_image_detail(image_id=image_id)
+
+
+_NSFW_PROMPT_TAGS = {
+    "nude", "naked", "nipples", "areola", "areolae", "pussy", "vagina",
+    "penis", "genitals", "sex", "sexual intercourse", "masturbation", "cum",
+    "oral", "fellatio", "cunnilingus", "anal", "spread pussy", "rating:explicit",
+}
+_SUSPICIOUS_PROMPT_TAGS = {
+    "nsfw", "rating:questionable", "rating:sensitive", "suggestive", "bikini",
+    "micro bikini", "swimsuit", "underwear", "panties", "bra", "lingerie",
+    "cleavage", "sideboob", "underboob", "see-through", "midriff", "thighhighs",
+}
+
+
+def classify_prompt_safety(positive_prompt: str) -> str:
+    """Classify embedded positive prompt metadata without inspecting the image."""
+    if not positive_prompt or not positive_prompt.strip():
+        return "suspicious"
+    normalized = positive_prompt.lower().replace("_", " ")
+    normalized = re.sub(r"[，、；;|/�]+", ",", normalized)
+    tags = {re.sub(r"^[\s({\[]+|[\s)}\]]+$", "", tag).strip() for tag in normalized.split(",")}
+    if any(tag in tags for tag in _NSFW_PROMPT_TAGS):
+        return "nsfw"
+    if any(tag in tags for tag in _SUSPICIOUS_PROMPT_TAGS):
+        return "suspicious"
+    return "normal"
+
+
+def analyze_new_output_safety_with_wd14(output_dir: Path | None = None) -> dict[str, Any]:
+    """仅用本机 WD14 识别上次完成后新增或变更的图片，图片不会离开本机。"""
+    root = (output_dir or get_configured_output_dir()).resolve()
+    if not _COMFY_PYTHON.is_file() or not _WD14_MODEL_DIR.is_dir() or not _SAFETY_WORKER.is_file():
+        raise RuntimeError("未找到本机 WD14 离线模型")
+
+    with _SCAN_LOCK:
+        with connect() as conn:
+            rows, baseline_created, skipped_existing = _get_incremental_rows(
+                conn,
+                _SAFETY_WATERMARK_KEY,
+                "id, rel_path, positive_prompt, safety_source, updated_at",
+            )
+            if baseline_created:
+                return {"total": 0, "updated": 0, "baseline": True, "skipped_existing": skipped_existing}
+            if not rows:
+                return {"total": 0, "updated": 0, "baseline": False, "skipped_existing": 0}
+        valid_rows: list[tuple[Any, Path]] = []
+        for row in rows:
+            try:
+                valid_rows.append((row, resolve_safe_output_file(row["rel_path"], output_dir=root)))
+            except (FileNotFoundError, ValueError):
+                continue
+
+        payload = {"paths": [str(path) for _, path in valid_rows], "model_dir": str(_WD14_MODEL_DIR)}
+        completed = subprocess.run(
+            [str(_COMFY_PYTHON), str(_SAFETY_WORKER)],
+            input=json.dumps(payload, ensure_ascii=False), text=True, encoding="utf-8",
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=1800, check=False,
+        )
+        if completed.returncode != 0:
+            raise RuntimeError("WD14 离线识别未完成")
+        try:
+            visual_results = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("WD14 返回的数据无效") from exc
+
+        rank = {"normal": 0, "suspicious": 1, "nsfw": 2}
+        updated = 0
+        with connect() as conn:
+            for row, path in valid_rows:
+                if row["safety_source"] == "手动":
+                    continue
+                result = visual_results.get(str(path), {})
+                visual_level = result.get("level")
+                if visual_level not in rank:
+                    continue
+                source_level = classify_prompt_safety(row["positive_prompt"])
+                final_level = visual_level if rank[visual_level] >= rank[source_level] else source_level
+                conn.execute(
+                    "UPDATE output_images SET safety_level = ?, safety_source = ? WHERE id = ?",
+                    (final_level, "WD14+图源", row["id"]),
+                )
+                updated += 1
+            _advance_processing_watermark(conn, _SAFETY_WATERMARK_KEY, rows)
+        return {"total": len(valid_rows), "updated": updated, "baseline": False, "skipped_existing": 0}
 
 
 def favorite_to_gallery(rel_path: str, category: str = "生图精选", output_dir: Path | None = None) -> dict[str, Any]:
@@ -363,16 +542,22 @@ def favorite_to_gallery(rel_path: str, category: str = "生图精选", output_di
     }
 
 
-def reparse_all_outputs(output_dir: Path | None = None) -> dict[str, int]:
-    """深度重新解析所有已收录的生图文件，强制提取精准的正负面提示词与 LoRA 列表并更新数据库。"""
+def reparse_new_outputs(output_dir: Path | None = None) -> dict[str, Any]:
+    """深度解析上次完成后新增或变更的生图文件，旧图库只保留为基线。"""
     root = (output_dir or get_configured_output_dir()).resolve()
     if not root.is_dir():
-        return {"total": 0, "updated": 0}
+        return {"total": 0, "updated": 0, "baseline": False, "skipped_existing": 0}
 
     with _SCAN_LOCK:
         init_db()
         with connect() as conn:
-            rows = conn.execute("SELECT id, rel_path FROM output_images").fetchall()
+            rows, baseline_created, skipped_existing = _get_incremental_rows(
+                conn,
+                _REPARSE_WATERMARK_KEY,
+                "id, rel_path, updated_at",
+            )
+            if baseline_created:
+                return {"total": 0, "updated": 0, "baseline": True, "skipped_existing": skipped_existing}
             updated_count = 0
             for row in rows:
                 image_id = row["id"]
@@ -394,12 +579,12 @@ def reparse_all_outputs(output_dir: Path | None = None) -> dict[str, int]:
                         loras = ?,
                         parameters = ?,
                         generation_params = ?,
-                        metadata_source = ?,
-                        updated_at = CURRENT_TIMESTAMP
+                        metadata_source = ?
                     WHERE id = ?
                     """,
                     (positive, negative, checkpoint, loras, parameters, generation_params, metadata_source, image_id),
                 )
                 updated_count += 1
 
-            return {"total": len(rows), "updated": updated_count}
+            _advance_processing_watermark(conn, _REPARSE_WATERMARK_KEY, rows)
+            return {"total": len(rows), "updated": updated_count, "baseline": False, "skipped_existing": 0}

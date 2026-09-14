@@ -1,0 +1,116 @@
+{
+  "top": [
+    "shirt",
+    "blouse",
+    "sweater",
+    "hoodie",
+    "tank top",
+    "t-shirt",
+    "crop top",
+    "camisole",
+    "tube top",
+    "white sweater",
+    "black sweater",
+    "turtleneck",
+    "buttoned shirt",
+    "collared shirt"
+  ],
+  "bottom": [
+    "skirt",
+    "shorts",
+    "pants",
+    "jeans",
+    "miniskirt",
+    "pleated skirt",
+    "denim shorts",
+    "trousers",
+    "leggings",
+    "denim pants"
+  ],
+  "outerwear": [
+    "coat",
+    "jacket",
+    "cardigan",
+    "cloak",
+    "blazer",
+    "trench coat",
+    "winter coat",
+    "red jacket",
+    "red coat",
+    "suit jacket",
+    "cape"
+  ],
+  "dress": [
+    "dress",
+    "sundress",
+    "maid dress",
+    "wedding dress",
+    "kimono",
+    "yukata",
+    "cheongsam",
+    "sailor dress",
+    "one-piece dress",
+    "babydoll"
+  ],
+  "swimwear": [
+    "swimsuit",
+    "bikini",
+    "school swimsuit",
+    "competition swimsuit",
+    "micro bikini",
+    "one-piece swimsuit"
+  ],
+  "underwear": [
+    "panties",
+    "bra",
+    "lingerie",
+    "underwear",
+    "thong",
+    "sports bra"
+  ],
+  "headwear": [
+    "hat",
+    "cap",
+    "beret",
+    "visor",
+    "witch hat",
+    "sun hat",
+    "beanie",
+    "helmet",
+    "fedora",
+    "maid headdress",
+    "tiara",
+    "crown"
+  ],
+  "footwear": [
+    "boots",
+    "shoes",
+    "sneakers",
+    "sandals",
+    "high heels",
+    "slippers",
+    "loafers",
+    "ankle boots",
+    "combat boots",
+    "barefoot"
+  ],
+  "legwear": [
+    "thighhighs",
+    "pantyhose",
+    "socks",
+    "knee highs",
+    "leg warmers",
+    "fishnet pantyhose",
+    "white thighhighs",
+    "black thighhighs",
+    "over-knee socks"
+  ],
+  "gloves": [
+    "gloves",
+    "mittens",
+    "fingerless gloves",
+    "white gloves",
+    "black gloves",
+    "elbow gloves"
+  ]
+}

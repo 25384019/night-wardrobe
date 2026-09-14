@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from .ai_tag_editor import get_deepseek_api_key, transform_tags_with_deepseek
 from .db import BASE_DIR, connect
 from .outputs_service import (
     favorite_to_gallery,
@@ -18,9 +19,12 @@ from .outputs_service import (
     get_output_dates,
     get_output_image_detail,
     query_output_images,
+    analyze_new_output_safety_with_wd14,
+    reparse_new_outputs,
     resolve_safe_output_file,
     scan_outputs,
     set_configured_output_dir,
+    set_output_safety_level,
 )
 
 router = APIRouter(tags=["Outputs"])
@@ -35,6 +39,19 @@ class SetFolderPayload(BaseModel):
 class FavoritePayload(BaseModel):
     rel_path: str
     category: str = "生图精选"
+
+
+class SafetyLevelPayload(BaseModel):
+    level: str
+
+
+class AiModifyTagsPayload(BaseModel):
+    prompt: str
+    mode: str = "nsfw"
+    instruction: str = ""
+    api_key: str = ""
+    save_key: bool = False
+
 
 
 @router.get("/outputs", response_class=HTMLResponse)
@@ -157,6 +174,33 @@ def api_scan_outputs():
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 
+@router.post("/api/outputs/reparse")
+def api_reparse_outputs():
+    try:
+        return {"ok": True, "result": reparse_new_outputs()}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+@router.post("/api/outputs/analyze-safety")
+def api_analyze_output_safety():
+    try:
+        return {"ok": True, "result": analyze_new_output_safety_with_wd14()}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+@router.post("/api/outputs/{image_id}/safety")
+def api_set_output_safety(image_id: int, payload: SafetyLevelPayload):
+    try:
+        detail = set_output_safety_level(image_id, payload.level)
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+    if not detail:
+        return JSONResponse(status_code=404, content={"error": "未找到图片记录"})
+    return {"ok": True, "safety_level": detail["safety_level"], "safety_source": detail["safety_source"]}
+
+
 @router.post("/api/outputs/set-folder")
 def api_set_folder(payload: SetFolderPayload):
     try:
@@ -174,3 +218,43 @@ def api_favorite(payload: FavoritePayload):
         return res
     except Exception as e:
         return JSONResponse(status_code=400, content={"ok": False, "error": str(e)})
+
+
+@router.get("/api/outputs/ai-tag-status")
+def api_ai_tag_status():
+    key = get_deepseek_api_key()
+    return {
+        "ok": True,
+        "has_key": bool(key),
+        "model": "deepseek-chat",
+    }
+
+
+@router.post("/api/outputs/ai-modify-tags")
+def api_ai_modify_tags(payload: AiModifyTagsPayload):
+    try:
+        if payload.save_key and payload.api_key.strip():
+            with connect() as conn:
+                conn.execute(
+                    """
+                    UPDATE llm_settings
+                    SET api_key = ?,
+                        base_url = CASE WHEN base_url = '' THEN 'https://api.deepseek.com/v1' ELSE base_url END,
+                        model = CASE WHEN model = '' THEN 'deepseek-chat' ELSE model END
+                    WHERE id = 1
+                    """,
+                    (payload.api_key.strip(),),
+                )
+
+        res = transform_tags_with_deepseek(
+            source_prompt=payload.prompt,
+            mode=payload.mode,
+            instruction=payload.instruction,
+            api_key=payload.api_key,
+        )
+        return res
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(exc)})
+

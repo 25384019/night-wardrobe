@@ -52,6 +52,7 @@ from .manga_routes import router as manga_router
 from .manga_service import manga_service
 from .outputs_routes import router as outputs_router
 from .outputs_service import scan_outputs
+from .prompt_editor import prompt_editor_router
 from .tag_api import router as tag_api_router
 from .video_decrypt_routes import router as video_decrypt_router
 from .video_decrypt_service import video_decrypt_service
@@ -65,6 +66,7 @@ app.include_router(video_decrypt_router)
 app.include_router(lora_router)
 app.include_router(manga_router)
 app.include_router(outputs_router)
+app.include_router(prompt_editor_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

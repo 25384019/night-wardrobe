@@ -1,0 +1,81 @@
+{
+  "hair_color": [
+    "black hair",
+    "brown hair",
+    "blonde hair",
+    "white hair",
+    "silver hair",
+    "grey hair",
+    "red hair",
+    "orange hair",
+    "yellow hair",
+    "green hair",
+    "blue hair",
+    "purple hair",
+    "pink hair",
+    "gradient hair",
+    "multicolored hair",
+    "two-tone hair"
+  ],
+  "hair_length": [
+    "very short hair",
+    "short hair",
+    "medium hair",
+    "long hair",
+    "very long hair",
+    "absurdly long hair"
+  ],
+  "hair_style_primary": [
+    "ponytail",
+    "twintails",
+    "side ponytail",
+    "bob cut",
+    "pixie cut",
+    "drill hair",
+    "low twintails",
+    "messy hair",
+    "spiky hair"
+  ],
+  "eye_color": [
+    "black eyes",
+    "brown eyes",
+    "red eyes",
+    "orange eyes",
+    "yellow eyes",
+    "green eyes",
+    "blue eyes",
+    "purple eyes",
+    "pink eyes",
+    "grey eyes",
+    "heterochromia",
+    "amber eyes"
+  ],
+  "base_pose": [
+    "standing",
+    "sitting",
+    "lying",
+    "kneeling",
+    "squatting",
+    "crawling"
+  ],
+  "environment": [
+    "indoors",
+    "outdoors"
+  ],
+  "time": [
+    "day",
+    "night",
+    "sunrise",
+    "sunset",
+    "dusk",
+    "dawn",
+    "morning"
+  ],
+  "breast_size": [
+    "flat chest",
+    "small breasts",
+    "medium breasts",
+    "large breasts",
+    "huge breasts"
+  ]
+}
