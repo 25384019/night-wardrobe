@@ -570,7 +570,8 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
 
     raw_triggers = _unique_tokens([token for card in matched for token in _comma_tokens(card.get("trigger_words", ""))])
     # A card name/filename is identity metadata, never a style trigger.
-    triggers = [token for token in raw_triggers if not any(_lora_key(token) == _lora_key(value) for value in _comma_tokens(detail.get("loras", "")))]
+    identity_names = {re.sub(r"\.safetensors$", "", value, flags=re.I).strip().casefold() for value in _comma_tokens(detail.get("loras", ""))}
+    triggers = [token for token in raw_triggers if token.casefold() not in identity_names]
     raw_artist_value = str(detail.get("artist_tokens", "") or "").replace("，", ",")
     raw_artist_value = re.sub(r"(?:触发词|trigger(?:\s*words?)?)\s*[:：]?", ",", raw_artist_value, flags=re.I)
     raw_artist_tokens = _comma_tokens(raw_artist_value)
