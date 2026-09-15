@@ -1092,11 +1092,16 @@
     var loraWrap = document.getElementById('inspector-lora-wrap');
     if (loraWrap) {
       var loraItems = (data.loras || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      var matched = data.matched_loras || [];
       loraWrap.innerHTML = loraItems.length ? loraItems.map(function(l) {
+        var key = l.replace(/\.safetensors$/i, '').toLowerCase();
+        var card = matched.find(function(item) { return String(item.name || '').toLowerCase() === key || String(item.filename || '').toLowerCase() === key; });
         var chip = document.createElement('span');
         chip.className = 'pipeline-lora-chip';
-        chip.textContent = l;
-        return chip.outerHTML;
+        chip.textContent = l + (card ? '' : ' · 未匹配');
+        var trigger = card && card.trigger_words ? card.trigger_words : '';
+        var copy = trigger ? '<button type="button" class="inspector-inline-copy" onclick="copyInlineInspectorText(this)" data-copy-text="' + encodeURIComponent(trigger) + '">复制触发词</button>' : '';
+        return '<div class="inspector-lora-item">' + chip.outerHTML + (trigger ? '<small>触发词: ' + String(trigger).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }) + '</small>' : '<small>未记录触发词</small>') + copy + '</div>';
       }).join(' ') : '<span class="pipeline-lora-chip">无</span>';
     }
 
@@ -1149,6 +1154,12 @@
     navigator.clipboard.writeText(text).then(function() {
       if (window.showToast) window.showToast(label + '已复制', 'success');
     });
+  };
+
+  window.copyInlineInspectorText = function(button) {
+    var text = decodeURIComponent(button.dataset.copyText || '');
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(function() { if (window.showToast) window.showToast('触发词已复制', 'success'); });
   };
 
   window.toggleInspectorField = function(id, button) {

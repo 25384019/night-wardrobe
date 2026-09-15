@@ -1320,6 +1320,10 @@
   white-space: nowrap;
 }
 
+.inspector-lora-item { display:flex; align-items:center; flex-wrap:wrap; gap:4px; margin:2px 0; }
+.inspector-lora-item small { color:var(--mochi-muted); font-size:10px; }
+.inspector-inline-copy { padding:2px 5px; font-size:10px; border-radius:5px; }
+
 /* STRICT USER SPECIFICATION #4: Generation Pipeline Specs */
 .inspector-pipeline-card {
   display: flex;
