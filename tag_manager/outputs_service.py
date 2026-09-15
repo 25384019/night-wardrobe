@@ -555,6 +555,17 @@ def _unique_tokens(values: list[str]) -> list[str]:
     return unique
 
 
+def _split_lora_style_label(value: str) -> tuple[str, list[str]]:
+    text = re.sub(r"\.safetensors$", "", str(value or "").strip(), flags=re.I)
+    parts = re.split(r"(?:触发词|trigger(?:\s*words?)?)\s*[:：]?", text, maxsplit=1, flags=re.I)
+    if len(parts) != 2:
+        return "", []
+    label = parts[0].strip(" ，,;；")
+    artist = label if re.search(r"(?:画风|画师|style|artist)", label, flags=re.I) else ""
+    triggers = _comma_tokens(parts[1].replace("，", ","))
+    return artist, triggers
+
+
 def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
     lora_keys = {_lora_key(value) for value in _comma_tokens(detail.get("loras", ""))}
     lora_keys.discard("")
@@ -568,7 +579,17 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
             if lora_keys.intersection(card_keys):
                 matched.append(card)
 
-    raw_triggers = _unique_tokens([token for card in matched for token in _comma_tokens(card.get("trigger_words", ""))])
+    explicit_triggers: list[str] = []
+    fallback_triggers: list[str] = []
+    fallback_artists: list[str] = []
+    for card in matched:
+        artist, named_triggers = _split_lora_style_label(card.get("name", ""))
+        fallback_triggers.extend(_comma_tokens(card.get("trigger_words", "")))
+        if named_triggers:
+            explicit_triggers.extend(named_triggers)
+            if artist:
+                fallback_artists.append(artist)
+    raw_triggers = _unique_tokens([*fallback_triggers, *explicit_triggers])
     # A card name/filename is identity metadata, never a style trigger.
     identity_names = {re.sub(r"\.safetensors$", "", value, flags=re.I).strip().casefold() for value in _comma_tokens(detail.get("loras", ""))}
     triggers = [token for token in raw_triggers if token.casefold() not in identity_names]
@@ -577,13 +598,13 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
     raw_artist_tokens = _comma_tokens(raw_artist_value)
     artist_strings = _unique_tokens(raw_artist_tokens)
     if not artist_strings:
-        artist_strings = _unique_tokens([str(card.get("name", "")).strip() for card in matched if str(card.get("name", "")).strip()])
+        artist_strings = _unique_tokens(fallback_artists)
     else:
         artist_strings = [re.sub(r"(?:触发词|trigger(?:\s*words?)?)\s*[:：]?", "", value, flags=re.I).strip(" ，,;") for value in artist_strings]
         artist_strings = [value for value in artist_strings if value and _lora_key(value) not in lora_keys]
     image_tokens = _comma_tokens(detail.get("positive_prompt", ""))
     prompt_keys = {token.casefold() for token in image_tokens}
-    triggers = [token for token in triggers if token.casefold() in prompt_keys or token.startswith("@")] 
+    triggers = [token for token in triggers if token.casefold() in prompt_keys]
     trigger_keys = {token.casefold() for token in triggers}
     character_tokens = [token for token in image_tokens if token.casefold() not in trigger_keys]
 
