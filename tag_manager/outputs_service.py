@@ -67,21 +67,32 @@ def _get_incremental_rows(conn, watermark_key: str, columns: str):
     """返回上次完成后新入库或文件有变动的记录；首次启用只建立水位线。"""
     watermark = _get_processing_watermark(conn, watermark_key)
     if not watermark:
-        baseline = conn.execute("SELECT max(updated_at) FROM output_images").fetchone()[0] or ""
-        _set_processing_watermark(conn, watermark_key, baseline)
+        baseline = conn.execute(
+            "SELECT updated_at, id FROM output_images ORDER BY updated_at DESC, id DESC LIMIT 1"
+        ).fetchone()
+        value = f"{baseline['updated_at']}|{baseline['id']}" if baseline else ""
+        _set_processing_watermark(conn, watermark_key, value)
         existing = conn.execute("SELECT count(*) FROM output_images").fetchone()[0]
         return [], True, existing
 
+    timestamp, separator, row_id = watermark.rpartition("|")
+    if not separator or not row_id.isdigit():
+        timestamp, row_id = watermark, "0"
     rows = conn.execute(
-        f"SELECT {columns} FROM output_images WHERE updated_at > ? ORDER BY updated_at, id",
-        (watermark,),
+        f"""
+        SELECT {columns} FROM output_images
+        WHERE updated_at > ? OR (updated_at = ? AND id > ?)
+        ORDER BY updated_at, id
+        """,
+        (timestamp, timestamp, int(row_id)),
     ).fetchall()
     return rows, False, 0
 
 
 def _advance_processing_watermark(conn, watermark_key: str, rows: list[Any]) -> None:
     if rows:
-        _set_processing_watermark(conn, watermark_key, max(str(row["updated_at"]) for row in rows))
+        latest = max(rows, key=lambda row: (str(row["updated_at"]), int(row["id"])))
+        _set_processing_watermark(conn, watermark_key, f"{latest['updated_at']}|{latest['id']}")
 
 
 def get_default_output_dir() -> Path:
@@ -759,6 +770,7 @@ def reparse_new_outputs(output_dir: Path | None = None) -> dict[str, Any]:
     if not root.is_dir():
         return {"total": 0, "updated": 0, "baseline": False, "skipped_existing": 0}
 
+    scan_outputs(root)
     with _SCAN_LOCK:
         init_db()
         with connect() as conn:

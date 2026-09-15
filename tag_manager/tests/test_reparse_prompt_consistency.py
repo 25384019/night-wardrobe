@@ -3,7 +3,7 @@ from pathlib import Path
 from PIL import Image
 
 from tag_manager.db import connect, init_db
-from tag_manager.outputs_service import reparse_new_outputs
+from tag_manager.outputs_service import reparse_new_outputs, scan_outputs
 from tag_manager.prompt_editor.version_manager import VersionManager
 
 
@@ -43,3 +43,24 @@ def test_reparse_preserves_current_prompt_version_snapshot(tmp_path, monkeypatch
     assert row["positive_prompt"] == "edited prompt"
     assert row["negative_prompt"] == "edited negative"
     assert row["original_positive_prompt"] == "source prompt"
+
+
+def test_reparse_detects_new_file_without_separate_refresh(tmp_path, monkeypatch):
+    db_path = tmp_path / "reparse.sqlite3"
+    monkeypatch.setattr("tag_manager.db.DB_PATH", db_path)
+    init_db(db_path)
+
+    import tag_manager.outputs_service as service
+    monkeypatch.setattr(service, "connect", lambda: connect(db_path))
+    monkeypatch.setattr(service, "init_db", lambda: None)
+
+    Image.new("RGB", (8, 8), "white").save(tmp_path / "old.png")
+    scan_outputs(tmp_path)
+    assert reparse_new_outputs(tmp_path)["baseline"] is True
+
+    Image.new("RGB", (8, 8), "blue").save(tmp_path / "new.png")
+    result = reparse_new_outputs(tmp_path)
+
+    assert result["updated"] == 1
+    with connect(db_path) as conn:
+        assert conn.execute("SELECT count(*) FROM output_images WHERE rel_path='new.png'").fetchone()[0] == 1
