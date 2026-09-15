@@ -369,11 +369,13 @@
             <div class="pipeline-spec-row">
               <span class="pipeline-key">触发词</span>
               <span class="pipeline-val pipeline-val-truncate" id="inspector-trigger-words" title="触发词">-</span>
+              <small class="inspector-source-badge" id="inspector-trigger-source"></small>
               <button type="button" class="inspector-tag-copy-button" onclick="copyInspectorField('inspector-trigger-words','触发词')">复制</button>
             </div>
             <div class="pipeline-spec-row">
               <span class="pipeline-key">画师串</span>
               <span class="pipeline-val pipeline-val-truncate" id="inspector-artist-tokens" title="画师串">-</span>
+              <small class="inspector-source-badge" id="inspector-artist-source"></small>
               <button type="button" class="inspector-tag-copy-button" onclick="copyInspectorField('inspector-artist-tokens','画师串')">复制</button>
             </div>
             <div class="pipeline-spec-row">
@@ -1102,8 +1104,14 @@
     var triggerWords = document.getElementById('inspector-trigger-words');
     var artistTokens = document.getElementById('inspector-artist-tokens');
     if (characterNames) { characterNames.textContent = data.character_tokens || '无'; characterNames.title = data.character_tokens || ''; characterNames.dataset.fullText = data.character_tokens || ''; }
-    if (triggerWords) { triggerWords.textContent = data.trigger_words || '无'; triggerWords.title = data.trigger_words || ''; triggerWords.dataset.fullText = data.trigger_words || ''; }
-    if (artistTokens) { artistTokens.textContent = data.artist_tokens || '无'; artistTokens.title = data.artist_tokens || ''; artistTokens.dataset.fullText = data.artist_tokens || ''; }
+    var triggerText = data.lora_trigger_words || data.trigger_words || '';
+    var artistText = data.lora_artist_strings || data.artist_tokens || '';
+    if (triggerWords) { triggerWords.textContent = triggerText || '无'; triggerWords.title = triggerText || ''; triggerWords.dataset.fullText = triggerText; }
+    if (artistTokens) { artistTokens.textContent = artistText || '无'; artistTokens.title = artistText || ''; artistTokens.dataset.fullText = artistText; }
+    var triggerSource = document.getElementById('inspector-trigger-source');
+    var artistSource = document.getElementById('inspector-artist-source');
+    if (triggerSource) triggerSource.textContent = data.lora_trigger_source ? ('来源: ' + data.lora_trigger_source) : '';
+    if (artistSource) artistSource.textContent = data.lora_artist_source ? ('来源: ' + data.lora_artist_source) : '';
 
     ['lora-style-tags', 'image-tags', 'character-tags'].forEach(function(name) {
       var element = document.getElementById('inspector-' + name);

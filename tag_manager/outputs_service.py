@@ -493,6 +493,9 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
     character_tokens = [token for token in image_tokens if token.casefold() not in trigger_keys]
 
     detail["matched_loras"] = matched
+    detail["lora_match_status"] = "matched" if matched else ("unmatched" if lora_keys else "none")
+    detail["lora_trigger_source"] = "lora_library" if triggers else ("comfyui" if detail.get("loras") else "none")
+    detail["lora_artist_source"] = "lora_library" if artist_strings else ("comfyui" if detail.get("artist_tokens") else "none")
     detail["lora_trigger_words"] = ", ".join(triggers)
     detail["lora_artist_strings"] = "；".join(artist_strings)
     artist_text = "；".join(artist_strings).casefold()

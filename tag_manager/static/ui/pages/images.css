@@ -1314,6 +1314,12 @@
   font-size: 11px;
 }
 
+.inspector-source-badge {
+  color: var(--mochi-muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
 /* STRICT USER SPECIFICATION #4: Generation Pipeline Specs */
 .inspector-pipeline-card {
   display: flex;
