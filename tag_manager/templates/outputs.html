@@ -351,17 +351,18 @@
           </details>
           <div class="inspector-tag-copies">
             <div class="inspector-tag-copy-row">
-              <span class="inspector-tag-copy-label">LoRA 标签</span>
+              <span class="inspector-tag-copy-label">风格 Prompt</span>
               <span class="inspector-tag-copy-value" id="inspector-lora-style-tags">-</span>
+              <button type="button" class="inspector-tag-copy-button" onclick="copyInspectorTags('style')">复制</button>
             </div>
             <div class="inspector-tag-copy-row">
-              <span class="inspector-tag-copy-label">图片标签</span>
+              <span class="inspector-tag-copy-label">图元 Prompt</span>
               <span class="inspector-tag-copy-value pipeline-val-truncate" id="inspector-image-tags">-</span>
               <button type="button" class="inspector-tag-copy-button" onclick="toggleInspectorField('inspector-image-tags', this)">展开</button>
               <button type="button" class="inspector-tag-copy-button" onclick="copyInspectorTags('image')">复制</button>
             </div>
             <div class="inspector-tag-copy-row">
-              <span class="inspector-tag-copy-label">角色标签</span>
+              <span class="inspector-tag-copy-label">角色 Prompt</span>
               <span class="inspector-tag-copy-value pipeline-val-truncate" id="inspector-character-tags">-</span>
               <button type="button" class="inspector-tag-copy-button" onclick="toggleInspectorField('inspector-character-tags', this)">展开</button>
               <button type="button" class="inspector-tag-copy-button" onclick="copyInspectorTags('character')">复制</button>
@@ -1150,7 +1151,7 @@
 
     ['lora-style-tags', 'image-tags', 'character-tags'].forEach(function(name) {
       var element = document.getElementById('inspector-' + name);
-      var field = name.replace(/-/g, '_');
+      var field = name === 'lora-style-tags' ? 'style_prompt' : (name === 'character-tags' ? 'character_prompt' : 'positive_prompt');
       if (element) { element.textContent = data[field] || '无'; element.title = data[field] || ''; element.dataset.fullText = data[field] || ''; element.classList.remove('is-expanded'); }
     });
 
@@ -1194,7 +1195,7 @@
   }
 
   window.copyInspectorTags = function(kind) {
-    var id = kind === 'character' ? 'inspector-character-tags' : 'inspector-image-tags';
+    var id = kind === 'character' ? 'inspector-character-tags' : (kind === 'style' ? 'inspector-lora-style-tags' : 'inspector-image-tags');
     var text = document.getElementById(id).textContent;
     if (!text || text === '无' || text === '-') return;
     navigator.clipboard.writeText(text).then(function() {
