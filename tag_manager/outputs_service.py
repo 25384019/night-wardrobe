@@ -582,6 +582,8 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
         artist_strings = [re.sub(r"(?:触发词|trigger(?:\s*words?)?)\s*[:：]?", "", value, flags=re.I).strip(" ，,;") for value in artist_strings]
         artist_strings = [value for value in artist_strings if value and _lora_key(value) not in lora_keys]
     image_tokens = _comma_tokens(detail.get("positive_prompt", ""))
+    prompt_keys = {token.casefold() for token in image_tokens}
+    triggers = [token for token in triggers if token.casefold() in prompt_keys or token.startswith("@")] 
     trigger_keys = {token.casefold() for token in triggers}
     character_tokens = [token for token in image_tokens if token.casefold() not in trigger_keys]
 
