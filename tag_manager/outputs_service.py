@@ -568,8 +568,12 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
             if lora_keys.intersection(card_keys):
                 matched.append(card)
 
-    triggers = _unique_tokens([token for card in matched for token in _comma_tokens(card.get("trigger_words", ""))])
-    raw_artist_tokens = _comma_tokens(detail.get("artist_tokens", ""))
+    raw_triggers = _unique_tokens([token for card in matched for token in _comma_tokens(card.get("trigger_words", ""))])
+    # A card name/filename is identity metadata, never a style trigger.
+    triggers = [token for token in raw_triggers if not any(_lora_key(token) == _lora_key(value) for value in _comma_tokens(detail.get("loras", "")))]
+    raw_artist_value = str(detail.get("artist_tokens", "") or "").replace("，", ",")
+    raw_artist_value = re.sub(r"(?:触发词|trigger(?:\s*words?)?)\s*[:：]?", ",", raw_artist_value, flags=re.I)
+    raw_artist_tokens = _comma_tokens(raw_artist_value)
     artist_strings = _unique_tokens(raw_artist_tokens)
     if not artist_strings:
         artist_strings = _unique_tokens([str(card.get("name", "")).strip() for card in matched if str(card.get("name", "")).strip()])
@@ -594,7 +598,7 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
     style_tokens = _unique_tokens([*triggers, *artist_strings])
     detail["style_prompt"] = ", ".join(style_tokens)
     style_keys = {token.casefold() for token in style_tokens}
-    detail["character_prompt"] = ", ".join(token for token in image_tokens if token.casefold() not in style_keys)
+    detail["character_prompt"] = ", ".join(token for token in image_tokens if token.casefold() not in style_keys and not any(token.casefold() == key or token.casefold().strip("@") == key.strip("@") for key in style_keys))
 
 
 def set_output_safety_level(image_id: int, level: str) -> dict[str, Any] | None:
