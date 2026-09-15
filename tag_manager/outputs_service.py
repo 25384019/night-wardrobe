@@ -579,17 +579,14 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
             if lora_keys.intersection(card_keys):
                 matched.append(card)
 
-    explicit_triggers: list[str] = []
     fallback_triggers: list[str] = []
     fallback_artists: list[str] = []
     for card in matched:
-        artist, named_triggers = _split_lora_style_label(card.get("name", ""))
+        artist, _ = _split_lora_style_label(card.get("name", ""))
         fallback_triggers.extend(_comma_tokens(card.get("trigger_words", "")))
-        if named_triggers:
-            explicit_triggers.extend(named_triggers)
-            if artist:
-                fallback_artists.append(artist)
-    raw_triggers = _unique_tokens([*fallback_triggers, *explicit_triggers])
+        if artist:
+            fallback_artists.append(artist)
+    raw_triggers = _unique_tokens(fallback_triggers)
     # A card name/filename is identity metadata, never a style trigger.
     identity_names = {re.sub(r"\.safetensors$", "", value, flags=re.I).strip().casefold() for value in _comma_tokens(detail.get("loras", ""))}
     triggers = [token for token in raw_triggers if token.casefold() not in identity_names]
@@ -617,7 +614,7 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
     detail["lora_style_tags"] = ", ".join([*artist_strings, *non_repeated_triggers])
     detail["image_tags"] = ", ".join(image_tokens)
     detail["character_tags"] = ", ".join(character_tokens)
-    style_tokens = _unique_tokens([*triggers, *artist_strings])
+    style_tokens = triggers
     detail["style_prompt"] = ", ".join(style_tokens)
     style_keys = {token.casefold() for token in style_tokens}
     detail["character_prompt"] = ", ".join(token for token in image_tokens if token.casefold() not in style_keys and not any(token.casefold() == key or token.casefold().strip("@") == key.strip("@") for key in style_keys))

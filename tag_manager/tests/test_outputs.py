@@ -134,9 +134,9 @@ class TestOutputsFeature(unittest.TestCase):
             image_id = conn.execute("SELECT id FROM output_images WHERE rel_path = 'lora_tags.png'").fetchone()[0]
 
         detail = get_output_image_detail(image_id=image_id)
-        self.assertEqual(detail["lora_trigger_words"], "stella, stella style, @stella")
+        self.assertEqual(detail["lora_trigger_words"], "stella, stella style")
         self.assertEqual(detail["lora_artist_strings"], "星绘画风")
-        self.assertEqual(detail["style_prompt"], "stella, stella style, @stella, 星绘画风")
+        self.assertEqual(detail["style_prompt"], "stella, stella style")
         self.assertEqual(detail["image_tags"], "stella, stella style, 1girl, blue eyes")
         self.assertEqual(detail["character_prompt"], "1girl, blue eyes")
 
@@ -155,8 +155,41 @@ class TestOutputsFeature(unittest.TestCase):
         detail = get_output_image_detail(image_id=image_id)
         self.assertEqual(detail["lora_trigger_words"], "@tsubasa tsubasa, tsubasa_tsubasa, @Yi")
         self.assertEqual(detail["lora_artist_strings"], "翼画风")
-        self.assertEqual(detail["style_prompt"], "@tsubasa tsubasa, tsubasa_tsubasa, @Yi, 翼画风")
+        self.assertEqual(detail["style_prompt"], "@tsubasa tsubasa, tsubasa_tsubasa, @Yi")
         self.assertEqual(detail["character_prompt"], "nahida, 1girl, green eyes")
+
+    def test_style_prompt_never_includes_chinese_trigger_descriptions(self):
+        with connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO lora_cards (name, filename, trigger_words) VALUES (?, ?, ?)",
+                ("小麦画风，触发词@komugi 右斜杠(2212右斜杠)", "小麦画风.safetensors", "@komugi (2212), komugi_(2212), @komugi \\(2212\\)"),
+            )
+            conn.execute(
+                "INSERT INTO output_images (rel_path, filename, file_date, positive_prompt, loras) VALUES (?, ?, ?, ?, ?)",
+                ("komugi.png", "komugi.png", "2026-09-15", "nahida, 1girl", "小麦画风.safetensors:1.0"),
+            )
+            image_id = conn.execute("SELECT id FROM output_images WHERE rel_path='komugi.png'").fetchone()[0]
+
+        detail = get_output_image_detail(image_id=image_id)
+        self.assertEqual(detail["style_prompt"], "@komugi (2212), komugi_(2212), @komugi \\(2212\\)")
+        self.assertNotIn("小麦", detail["style_prompt"])
+        self.assertNotIn("右斜杠", detail["style_prompt"])
+
+    def test_style_prompt_never_includes_ascii_lora_display_name(self):
+        with connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO lora_cards (name, filename, trigger_words) VALUES (?, ?, ?)",
+                ("Tsubasa style, trigger @Yi", "tsubasa.safetensors", "@tsubasa tsubasa, tsubasa_tsubasa, @Yi"),
+            )
+            conn.execute(
+                "INSERT INTO output_images (rel_path, filename, file_date, positive_prompt, loras) VALUES (?, ?, ?, ?, ?)",
+                ("tsubasa.png", "tsubasa.png", "2026-09-15", "nahida, @Yi", "tsubasa.safetensors:1.0"),
+            )
+            image_id = conn.execute("SELECT id FROM output_images WHERE rel_path='tsubasa.png'").fetchone()[0]
+
+        detail = get_output_image_detail(image_id=image_id)
+        self.assertEqual(detail["style_prompt"], "@tsubasa tsubasa, tsubasa_tsubasa, @Yi")
+        self.assertNotIn("Tsubasa style", detail["style_prompt"])
 
     def test_prompt_safety_uses_positive_prompt_only(self):
         self.assertEqual(classify_prompt_safety("1girl, school uniform, smile"), "normal")
