@@ -1299,6 +1299,15 @@
   white-space: nowrap;
 }
 
+.inspector-tag-copy-value.is-expanded,
+.pipeline-val-truncate.is-expanded {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: none;
+}
+
 .inspector-tag-copy-button {
   padding: 3px 8px;
   border-radius: 7px;
