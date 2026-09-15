@@ -109,7 +109,7 @@ Windows 也可双击根目录 `start.bat`：首次运行会创建虚拟环境并
 在仓库根目录运行单元测试：
 
 ```bash
-python -m unittest discover -s tag_manager/tests -v
+python -m pytest tag_manager/tests -q
 ```
 
 核对应用版本与 `/api/v1` 操作数：
