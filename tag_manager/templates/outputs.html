@@ -303,6 +303,11 @@
           </button>
         </div>
 
+        <div class="inspector-assets-card" id="inspector-assets-card" hidden>
+          <div class="pipeline-card-header"><span class="pipeline-title">资产关联与复刻建议</span></div>
+          <div id="inspector-assets-content" class="inspector-assets-content">选择图片后加载关联资产…</div>
+        </div>
+
         <!-- Prompt Lineage / Creative Journal Section -->
         <div class="inspector-lineage-card">
           <div class="lineage-card-header">
@@ -1048,6 +1053,7 @@
         if (requestId !== inspectorRequestId || selectedImageId !== id || !isVisibleImage(id)) return;
         selectedDetail = data;
         updateInspectorPanel(data);
+        loadInspectorAssets(id, requestId);
       })
       .catch(function(err) {
         console.warn('Inspector detail fetch error:', err);
@@ -1136,6 +1142,23 @@
     }
     var rating = document.getElementById('inspector-safety-select');
     if (rating) rating.value = data.safety_level || 'normal';
+  }
+
+  function loadInspectorAssets(id, requestId) {
+    var card = document.getElementById('inspector-assets-card');
+    var content = document.getElementById('inspector-assets-content');
+    if (!card || !content) return;
+    card.hidden = false;
+    content.textContent = '正在加载关联资产…';
+    fetch('/api/outputs/assets?id=' + encodeURIComponent(id)).then(function(res) {
+      if (!res.ok) throw new Error('asset request failed');
+      return res.json();
+    }).then(function(data) {
+      if (requestId !== inspectorRequestId || selectedImageId !== id) return;
+      var chars = (data.characters || []).map(function(c) { return c.name + '（使用 ' + (c.usage_count || 0) + ' 次）'; });
+      var loras = (data.loras || []).map(function(l) { return l.name || l.filename || ''; }).filter(Boolean);
+      content.innerHTML = '<div>角色：' + (chars.join('、') || '未匹配') + '</div><div>LoRA：' + (loras.join('、') || '未匹配') + '</div><div class="inspector-replay-hint">' + (data.suggestions || []).join('；') + '</div>';
+    }).catch(function() { if (requestId === inspectorRequestId) content.textContent = '关联资产暂不可用'; });
   }
 
   window.copyInspectorTags = function(kind) {
@@ -1283,6 +1306,15 @@
     }
     window.location.href = '/workshop';
   };
+
+  document.addEventListener('keydown', function(event) {
+    var target = event.target;
+    if (target && (target.matches('input, textarea, select, [contenteditable="true"]') || target.closest('[role="dialog"]'))) return;
+    if (!selectedImageId || !isVisibleImage(selectedImageId)) return;
+    if (event.ctrlKey && event.key.toLowerCase() === 'c') { event.preventDefault(); copySelectedPrompt(); }
+    else if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); sendSelectedToStudio(); }
+    else if (!event.ctrlKey && !event.altKey && event.key === ' ') { event.preventDefault(); openInspectorModalZoom(); }
+  });
 
   window.upscaleSelectedImage = function() {
     if (window.showToast) window.showToast('已启动 2x ESRGAN 无损高清放大...', 'info');
