@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -51,7 +51,7 @@ from .character_inspector import inspect_image
 from .lora_routes import LORA_PREVIEW_DIR
 from .lora_routes import router as lora_router
 from .outputs_routes import router as outputs_router
-from .outputs_service import scan_outputs
+from .outputs_service import get_output_image_detail, scan_outputs
 from .prompt_editor import prompt_editor_router
 from .tag_api import router as tag_api_router
 from .workflows import WORKFLOW_DIR, WORKFLOW_EXTENSIONS, export_workflows_zip, import_workflows_zip, save_workflow_bytes, scan_workflows
@@ -1523,6 +1523,33 @@ def api_tags_lookup(q: str = ""):
 @app.get("/api/characters")
 def api_characters():
     return JSONResponse(get_characters_data())
+
+
+@app.get("/api/characters/prefill")
+def api_character_prefill(image_id: int = Query(..., ge=1)):
+    """Return editable character-card fields derived from an output image.
+
+    This endpoint is deliberately read-only: the caller must submit the existing
+    character form separately after reviewing the suggested values.
+    """
+    detail = get_output_image_detail(image_id=image_id, include_workflow=False)
+    if not detail:
+        return JSONResponse({"error": "未找到图片记录"}, status_code=404)
+    lora = (detail.get("matched_loras") or [{}])[0]
+    filename = Path(str(detail.get("filename") or detail.get("rel_path") or "图片")).stem
+    negative = str(detail.get("negative_prompt") or "").strip()
+    notes = "来源：输出图片元数据"
+    if negative:
+        notes += "\n负向 Prompt：" + negative
+    return JSONResponse({
+        "image_id": image_id,
+        "name": filename,
+        "lora": lora.get("name") or lora.get("filename") or lora.get("detected_name") or "",
+        "lora_weight": lora.get("weight") if lora.get("weight") is not None else 1.0,
+        "trigger_words": detail.get("lora_trigger_words") or "",
+        "appearance": detail.get("character_tags") or "",
+        "notes": notes,
+    })
 
 
 @app.post("/api/characters/inspect")
