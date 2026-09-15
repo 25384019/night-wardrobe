@@ -570,6 +570,8 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
 
     triggers = _unique_tokens([token for card in matched for token in _comma_tokens(card.get("trigger_words", ""))])
     artist_strings = _unique_tokens(_comma_tokens(detail.get("artist_tokens", "")))
+    if not artist_strings:
+        artist_strings = _unique_tokens([str(card.get("name", "")).strip() for card in matched if str(card.get("name", "")).strip()])
     artist_strings = [re.sub(r"(?:触发词|trigger(?:\s*words?)?)\s*[:：]?", "", value, flags=re.I).strip(" ，,;") for value in artist_strings]
     artist_strings = [value for value in artist_strings if value and _lora_key(value) not in lora_keys]
     image_tokens = _comma_tokens(detail.get("positive_prompt", ""))
