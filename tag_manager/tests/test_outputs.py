@@ -134,13 +134,13 @@ class TestOutputsFeature(unittest.TestCase):
             image_id = conn.execute("SELECT id FROM output_images WHERE rel_path = 'lora_tags.png'").fetchone()[0]
 
         detail = get_output_image_detail(image_id=image_id)
-        self.assertEqual(detail["lora_trigger_words"], "stella, stella style")
+        self.assertEqual(detail["lora_trigger_words"], "stella, stella style, @stella")
         self.assertEqual(detail["lora_artist_strings"], "星绘画风")
-        self.assertEqual(detail["style_prompt"], "stella, stella style, 星绘画风")
+        self.assertEqual(detail["style_prompt"], "stella, stella style, @stella, 星绘画风")
         self.assertEqual(detail["image_tags"], "stella, stella style, 1girl, blue eyes")
         self.assertEqual(detail["character_prompt"], "1girl, blue eyes")
 
-    def test_output_detail_uses_only_triggers_present_in_image_prompt(self):
+    def test_output_detail_uses_all_configured_style_triggers(self):
         with connect(self.db_path) as conn:
             conn.execute(
                 "INSERT INTO lora_cards (name, filename, trigger_words) VALUES (?, ?, ?)",
@@ -153,9 +153,9 @@ class TestOutputsFeature(unittest.TestCase):
             image_id = conn.execute("SELECT id FROM output_images WHERE rel_path='yi_style.png'").fetchone()[0]
 
         detail = get_output_image_detail(image_id=image_id)
-        self.assertEqual(detail["lora_trigger_words"], "@Yi")
+        self.assertEqual(detail["lora_trigger_words"], "@tsubasa tsubasa, tsubasa_tsubasa, @Yi")
         self.assertEqual(detail["lora_artist_strings"], "翼画风")
-        self.assertEqual(detail["style_prompt"], "@Yi, 翼画风")
+        self.assertEqual(detail["style_prompt"], "@tsubasa tsubasa, tsubasa_tsubasa, @Yi, 翼画风")
         self.assertEqual(detail["character_prompt"], "nahida, 1girl, green eyes")
 
     def test_prompt_safety_uses_positive_prompt_only(self):
