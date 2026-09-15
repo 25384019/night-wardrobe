@@ -1308,6 +1308,8 @@
   max-width: none;
 }
 
+#inspector-character-tags { max-width: none; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+
 .inspector-tag-copy-button {
   padding: 3px 8px;
   border-radius: 7px;
