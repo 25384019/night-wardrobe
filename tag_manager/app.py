@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sqlite3
+import tempfile
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
@@ -46,6 +47,7 @@ from .folder_ops import (
 from .gallery import GALLERY_DIR, IMAGE_EXTENSIONS, export_gallery_zip, import_gallery_zip, ingest_saved_paths, save_gallery_bytes, scan_gallery
 from .import_magic_book import import_magic_book
 from .llm import chat_completion, chat_completion_messages, list_models
+from .character_inspector import inspect_image
 from .lora_routes import LORA_PREVIEW_DIR
 from .lora_routes import router as lora_router
 from .outputs_routes import router as outputs_router
@@ -67,7 +69,7 @@ app.include_router(outputs_router)
 app.include_router(prompt_editor_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://127.0.0.1:8765", "http://localhost:8765"],
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -1521,6 +1523,23 @@ def api_tags_lookup(q: str = ""):
 @app.get("/api/characters")
 def api_characters():
     return JSONResponse(get_characters_data())
+
+
+@app.post("/api/characters/inspect")
+async def api_character_inspect(file: UploadFile = File(...)):
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in CHARACTER_PREVIEW_EXTENSIONS:
+        return JSONResponse({"error": "仅支持 png/jpg/webp 图片"}, status_code=415)
+    data = await file.read()
+    if len(data) > CHARACTER_PREVIEW_MAX_BYTES:
+        return JSONResponse({"error": "图片过大"}, status_code=413)
+    with tempfile.NamedTemporaryFile(suffix=suffix) as tmp:
+        tmp.write(data)
+        tmp.flush()
+        try:
+            return JSONResponse(inspect_image(Path(tmp.name)))
+        except (OSError, ValueError) as exc:
+            return JSONResponse({"error": f"图片解析失败：{exc}"}, status_code=422)
 
 
 @app.get("/api/recipes")

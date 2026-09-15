@@ -149,7 +149,17 @@ def migrate_prompt_versions(conn: Optional[sqlite3.Connection] = None) -> dict:
                     last_version_id = cursor.lastrowid
                     stats["history_migrated"] += 1
 
-            # 4. Ensure current_prompt_version_id points to latest
+            # 4. Initialize current only when the image has no valid current.
+            # A user's explicit branch/rollback selection must survive restart.
+            current = img["current_prompt_version_id"]
+            if current:
+                existing = c.execute(
+                    "SELECT 1 FROM prompt_versions WHERE id = ? AND image_id = ?",
+                    (current, img_id),
+                ).fetchone()
+                if existing:
+                    continue
+
             latest_v = c.execute(
                 "SELECT id, positive_prompt, version_number FROM prompt_versions WHERE image_id = ? ORDER BY version_number DESC, id DESC LIMIT 1",
                 (img_id,),

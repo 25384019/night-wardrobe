@@ -84,7 +84,60 @@ def test_1_new_image_initialization(client, test_image):
     with connect() as conn:
         img = conn.execute("SELECT prompt_version, current_prompt_version_id FROM output_images WHERE id = ?", (img_id,)).fetchone()
         assert img["prompt_version"] == 0
-        assert img["current_prompt_version_id"] == v0["id"]
+    assert img["current_prompt_version_id"] == v0["id"]
+
+
+def test_init_db_preserves_user_selected_current_version(test_image, tmp_path):
+    """Re-running startup migration must not replace a valid current version with the latest."""
+    img_id = test_image["image_id"]
+    v0_id = test_image["v0_id"]
+    v1 = VersionManager.create_version(img_id, "edited once", negative_prompt="neg1", instruction="Edit A")
+    v2 = VersionManager.create_version(img_id, "edited twice", negative_prompt="neg2", instruction="Edit B")
+    VersionManager.set_current_version(img_id, v1["id"])
+
+    init_db()
+
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT current_prompt_version_id, prompt_version, positive_prompt, negative_prompt FROM output_images WHERE id = ?",
+            (img_id,),
+        ).fetchone()
+    assert row["current_prompt_version_id"] == v1["id"]
+    assert row["prompt_version"] == v1["version_number"]
+    assert row["positive_prompt"] == "edited once"
+    assert row["negative_prompt"] == "neg1"
+
+
+def test_legacy_apply_uses_version_manager_number_after_branch(test_image):
+    """Legacy Apply response and edit history must use the allocated version number."""
+    from tag_manager.prompt_editor.schemas import PromptEditApplyRequest
+    from tag_manager.prompt_editor.service import PromptEditorService
+
+    img_id = test_image["image_id"]
+    v1 = VersionManager.create_version(img_id, "edited once", instruction="Edit A")
+    VersionManager.create_version(img_id, "edited twice", instruction="Edit B")
+    VersionManager.set_current_version(img_id, v1["id"])
+
+    result = PromptEditorService().apply_edit(PromptEditApplyRequest(
+        image_id=img_id,
+        edited_prompt="branched edit",
+        prompt_version=v1["version_number"],
+        instruction="Edit C",
+    ))
+
+    with connect() as conn:
+        history = conn.execute(
+            "SELECT version FROM prompt_edit_history WHERE image_id = ? ORDER BY id DESC LIMIT 1",
+            (img_id,),
+        ).fetchone()
+        current = conn.execute(
+            "SELECT prompt_version, positive_prompt FROM output_images WHERE id = ?",
+            (img_id,),
+        ).fetchone()
+    assert result["new_version"] == 3
+    assert history["version"] == 3
+    assert current["prompt_version"] == 3
+    assert current["positive_prompt"] == "branched edit"
 
 
 def test_2_first_apply_from_v0_creates_v1(client, test_image):

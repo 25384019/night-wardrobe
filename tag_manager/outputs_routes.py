@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import json
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -158,11 +159,25 @@ def get_output_file(path: str = Query(..., description="相对路径")):
 def get_detail(
     id: int | None = Query(None),
     path: str | None = Query(None),
+    full: bool = Query(False, description="是否包含完整 workflow"),
 ):
-    detail = get_output_image_detail(image_id=id, rel_path=path)
+    detail = get_output_image_detail(image_id=id, rel_path=path, include_workflow=full)
     if not detail:
         return JSONResponse(status_code=404, content={"error": "未找到图片记录"})
     return detail
+
+
+@router.get("/api/outputs/detail/workflow")
+def get_detail_workflow(id: int = Query(..., ge=1)):
+    detail = get_output_image_detail(image_id=id, include_workflow=True)
+    if not detail:
+        return JSONResponse(status_code=404, content={"error": "未找到图片记录"})
+    raw = detail.get("workflow_json") or detail.get("prompt_json") or "{}"
+    try:
+        workflow = json.loads(raw) if isinstance(raw, str) else raw
+    except json.JSONDecodeError:
+        workflow = {}
+    return {"id": id, "workflow": workflow}
 
 
 @router.post("/api/outputs/scan")
@@ -257,4 +272,3 @@ def api_ai_modify_tags(payload: AiModifyTagsPayload):
         return JSONResponse(status_code=400, content={"ok": False, "error": str(exc)})
     except Exception as exc:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(exc)})
-

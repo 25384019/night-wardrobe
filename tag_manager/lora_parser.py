@@ -94,6 +94,7 @@ def parse_safetensors_header(header: dict) -> dict:
         "base_model": normalize_base_model(str(metadata.get("ss_base_model_version", ""))),
         "net_dim": str(metadata.get("ss_network_dim", "") or ""),
         "trigger_words": ", ".join(trigger_words),
+        "training_tags": ", ".join(trigger_words),
         "tag_frequency": json.dumps(dict(top_tags[:TAG_FREQUENCY_LIMIT]), ensure_ascii=False),
         "output_name": str(metadata.get("ss_output_name", "") or ""),
     }

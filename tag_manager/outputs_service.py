@@ -24,6 +24,29 @@ _REPARSE_WATERMARK_KEY = "outputs_reparse_last_completed_at"
 _SAFETY_WATERMARK_KEY = "outputs_wd14_last_completed_at"
 
 
+def _sync_output_loras(conn, image_id: int, raw_loras: str) -> None:
+    conn.execute("DELETE FROM output_loras WHERE image_id = ?", (image_id,))
+    for item in (raw_loras or "").split(","):
+        token = item.strip()
+        if not token:
+            continue
+        name, sep, weight_text = token.rpartition(":")
+        if not sep or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", weight_text):
+            name, weight = token, None
+        else:
+            weight = float(weight_text)
+        name = name.strip().rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+        stem = name.rsplit(".safetensors", 1)[0]
+        card = conn.execute(
+            "SELECT id FROM lora_cards WHERE name = ? OR filename = ? OR filename = ?",
+            (stem, name, f"{stem}.safetensors"),
+        ).fetchone()
+        conn.execute(
+            "INSERT OR REPLACE INTO output_loras (image_id, lora_id, detected_name, weight, source) VALUES (?, ?, ?, ?, 'metadata')",
+            (image_id, card["id"] if card else None, stem, weight),
+        )
+
+
 def _get_processing_watermark(conn, key: str) -> str:
     row = conn.execute("SELECT value FROM gacha_store WHERE key = ?", (key,)).fetchone()
     return str(row["value"]) if row and row["value"] else ""
@@ -249,6 +272,7 @@ def ingest_output_image(conn, path: Path, root: Path) -> None:
             img_id = r[0]
 
     if img_id:
+        _sync_output_loras(conn, img_id, loras)
         v0 = conn.execute("SELECT id FROM prompt_versions WHERE image_id = ? AND version_number = 0", (img_id,)).fetchone()
         if not v0:
             v0_cur = conn.execute(
@@ -406,7 +430,7 @@ def query_output_images(
         return images, total_count
 
 
-def get_output_image_detail(image_id: int | None = None, rel_path: str | None = None) -> dict[str, Any] | None:
+def get_output_image_detail(image_id: int | None = None, rel_path: str | None = None, include_workflow: bool = True) -> dict[str, Any] | None:
     """获取单张生图的完整元数据与工作流。"""
     with connect() as conn:
         if image_id is not None:
@@ -420,6 +444,9 @@ def get_output_image_detail(image_id: int | None = None, rel_path: str | None = 
         detail = dict(row)
         _attach_lora_library_tags(conn, detail)
         detail["safety_level"] = detail.get("safety_level") or classify_prompt_safety(detail.get("positive_prompt", ""))
+        if not include_workflow:
+            detail.pop("workflow_json", None)
+            detail.pop("prompt_json", None)
         return detail
 
 
@@ -640,8 +667,8 @@ def reparse_new_outputs(output_dir: Path | None = None) -> dict[str, Any]:
                 conn.execute(
                     """
                     UPDATE output_images
-                    SET positive_prompt = ?,
-                        negative_prompt = ?,
+                    SET positive_prompt = CASE WHEN current_prompt_version_id IS NULL OR current_prompt_version_id = 0 THEN ? ELSE positive_prompt END,
+                        negative_prompt = CASE WHEN current_prompt_version_id IS NULL OR current_prompt_version_id = 0 THEN ? ELSE negative_prompt END,
                         checkpoint = ?,
                         loras = ?,
                         parameters = ?,
@@ -660,6 +687,7 @@ def reparse_new_outputs(output_dir: Path | None = None) -> dict[str, Any]:
                      ", ".join(structured["other_tags"]), structured["style_unit_json"],
                      structured["original_prompt"], structured["composed_prompt"], metadata_source, image_id),
                 )
+                _sync_output_loras(conn, image_id, loras)
                 updated_count += 1
 
             _advance_processing_watermark(conn, _REPARSE_WATERMARK_KEY, rows)

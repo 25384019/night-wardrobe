@@ -267,7 +267,7 @@
           <div class="inspector-light-table group" id="inspectorLightTable">
             <img id="inspector-preview-img" src="" alt="Selected Preview">
             <div class="inspector-table-badges">
-              <span class="table-dim-badge" id="inspector-dim-badge">800 × 1200</span>
+              <span class="table-dim-badge" id="inspector-dim-badge">未记录</span>
               <span class="table-format-badge">PNG</span>
             </div>
             <button type="button" class="btn-table-zoom" title="查看高清原图" onclick="openInspectorModalZoom()">
@@ -293,7 +293,7 @@
             <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 2a4.5 4.5 0 0 0 0 9 4.5 4.5 0 0 1 0 9"/><circle cx="8.5" cy="8.5" r="1.5"/><circle cx="15.5" cy="8.5" r="1.5"/><circle cx="15.5" cy="15.5" r="1.5"/></svg>
             <span>填入工作台</span>
           </button>
-          <button type="button" class="inspector-grid-btn" title="无损高清放大 (2x ESRGAN)" onclick="upscaleSelectedImage()">
+          <button type="button" class="inspector-grid-btn" title="高清放大功能尚未启用" disabled>
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-8 12H9.5v-2h-2v2H6V9h1.5v2.5h2V9H11v6zm7-1c0 .55-.45 1-1 1h-4V9h4c.55 0 1 .45 1 1v4zm-1.5-3.5h-2v3h2v-3z"/></svg>
             <span>高清放大</span>
           </button>
@@ -358,6 +358,7 @@
               <div class="pipeline-val" id="inspector-lora-wrap">
                 <span class="pipeline-lora-chip" id="inspector-lora-chip">-</span>
               </div>
+              <button type="button" class="inspector-tag-copy-button" onclick="copyInspectorLoras()">复制全部</button>
             </div>
             <div class="pipeline-spec-row">
               <span class="pipeline-key">角色名字</span>
@@ -982,6 +983,12 @@
     if (prompt) prompt.textContent = '未选择图片';
     var negative = document.getElementById('inspector-neg-text');
     if (negative) negative.textContent = '（无负向词）';
+    ['inspector-dim-badge', 'inspector-ckpt-val', 'inspector-sampler-val', 'inspector-cfg-val', 'inspector-seed-val'].forEach(function(id) {
+      var value = document.getElementById(id);
+      if (value) value.textContent = '未记录';
+    });
+    var loraWrap = document.getElementById('inspector-lora-wrap');
+    if (loraWrap) loraWrap.innerHTML = '<span class="pipeline-lora-chip">无</span>';
     ['inspector-lora-style-tags', 'inspector-image-tags', 'inspector-character-tags'].forEach(function(id) {
       var element = document.getElementById(id);
       if (element) { element.textContent = '-'; element.title = ''; }
@@ -1014,16 +1021,16 @@
     var dt = document.getElementById('inspector-datetime');
     if (dt) dt.textContent = (ds.date || '') + (ds.time ? (' · ' + ds.time) : '');
     var dim = document.getElementById('inspector-dim-badge');
-    if (dim) dim.textContent = (ds.width && ds.height) ? (ds.width + ' × ' + ds.height) : '800 × 1200';
+    if (dim) dim.textContent = (ds.width && ds.height) ? (ds.width + ' × ' + ds.height) : '未记录';
     var pText = document.getElementById('inspector-prompt-text');
     if (pText) pText.textContent = ds.prompt || '（无嵌入提示词）';
     var ckptVal = document.getElementById('inspector-ckpt-val');
     if (ckptVal) {
-      ckptVal.textContent = ds.checkpoint || 'SDXL Turbo Core';
+      ckptVal.textContent = ds.checkpoint || '未记录';
       ckptVal.title = ds.checkpoint || '';
     }
     var loraChip = document.getElementById('inspector-lora-chip');
-    if (loraChip) loraChip.textContent = ds.loras ? ds.loras.split(',')[0] : '无';
+    if (loraChip) loraChip.textContent = ds.loras || '无';
     var dimsVal = document.getElementById('inspector-dims-val');
     if (dimsVal) dimsVal.textContent = (ds.width && ds.height) ? (ds.width + ' × ' + ds.height) : '-';
 
@@ -1076,14 +1083,15 @@
       var ckptEl = document.getElementById('inspector-ckpt-val');
       if (ckptEl) { ckptEl.textContent = data.checkpoint; ckptEl.title = data.checkpoint; }
     }
-    if (data.loras) {
-      var loraWrap = document.getElementById('inspector-lora-wrap');
-      if (loraWrap) {
-        var loraItems = data.loras.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-        loraWrap.innerHTML = loraItems.slice(0, 2).map(function(l) {
-          return '<span class="pipeline-lora-chip">' + l + '</span>';
-        }).join(' ');
-      }
+    var loraWrap = document.getElementById('inspector-lora-wrap');
+    if (loraWrap) {
+      var loraItems = (data.loras || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      loraWrap.innerHTML = loraItems.length ? loraItems.map(function(l) {
+        var chip = document.createElement('span');
+        chip.className = 'pipeline-lora-chip';
+        chip.textContent = l;
+        return chip.outerHTML;
+      }).join(' ') : '<span class="pipeline-lora-chip">无</span>';
     }
 
     var characterNames = document.getElementById('inspector-character-names');
@@ -1122,6 +1130,16 @@
     });
   };
 
+  window.copyInspectorLoras = function() {
+    var chips = document.querySelectorAll('#inspector-lora-wrap .pipeline-lora-chip');
+    var text = Array.prototype.map.call(chips, function(chip) { return chip.textContent.trim(); })
+      .filter(function(value) { return value && value !== '无' && value !== '-'; }).join(', ');
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(function() {
+      if (window.showToast) window.showToast('LoRA 已全部复制', 'success');
+    });
+  };
+
   window.saveInspectorSafetyLevel = function() {
     if (!selectedImageId || !isVisibleImage(selectedImageId)) return;
     var select = document.getElementById('inspector-safety-select');
@@ -1148,7 +1166,13 @@
   };
 
   function parseGenerationSpecs(raw) {
-    if (!raw) return;
+    if (!raw) {
+      var emptySampler = document.getElementById('inspector-sampler-val');
+      var emptyCfg = document.getElementById('inspector-cfg-val');
+      if (emptySampler) emptySampler.textContent = '未记录';
+      if (emptyCfg) emptyCfg.textContent = '未记录';
+      return;
+    }
     var stepsMatch = raw.match(/Steps:\s*(\d+)/i);
     var samplerMatch = raw.match(/Sampler:\s*([^,]+)/i);
     var cfgMatch = raw.match(/CFG scale:\s*([\d.]+)/i);
@@ -1156,12 +1180,12 @@
 
     var samplerVal = document.getElementById('inspector-sampler-val');
     if (samplerVal) {
-      var s = samplerMatch ? samplerMatch[1].trim() : 'Euler a';
-      var st = stepsMatch ? stepsMatch[1].trim() + ' steps' : '20 steps';
+      var s = samplerMatch ? samplerMatch[1].trim() : '未记录';
+      var st = stepsMatch ? stepsMatch[1].trim() + ' steps' : '未记录';
       samplerVal.textContent = s + ' · ' + st;
     }
     var cfgVal = document.getElementById('inspector-cfg-val');
-    if (cfgVal) cfgVal.textContent = cfgMatch ? cfgMatch[1].trim() : '7.0';
+    if (cfgVal) cfgVal.textContent = cfgMatch ? cfgMatch[1].trim() : '未记录';
     var seedVal = document.getElementById('inspector-seed-val');
     if (seedVal) seedVal.textContent = seedMatch ? seedMatch[1].trim() : '-';
   }

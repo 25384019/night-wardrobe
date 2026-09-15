@@ -23,6 +23,7 @@ class HistoryManager:
         diff_json: Optional[Dict[str, Any]] = None,
         applied_by: str = "user",
         conn: Optional[Any] = None,
+        prompt_version_id: Optional[int] = None,
     ) -> int:
         """
         Record a prompt edit entry and prune older history beyond MAX_HISTORY_PER_IMAGE.
@@ -34,15 +35,16 @@ class HistoryManager:
             cursor = c.execute(
                 """
                 INSERT INTO prompt_edit_history (
-                    image_id, version, instruction, edit_scopes,
+                    image_id, version, prompt_version_id, instruction, edit_scopes,
                     positive_prompt_before, positive_prompt_after,
                     negative_prompt_before, negative_prompt_after,
                     diff_json, applied_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     image_id,
                     version,
+                    prompt_version_id,
                     instruction,
                     scopes_str,
                     positive_prompt_before,

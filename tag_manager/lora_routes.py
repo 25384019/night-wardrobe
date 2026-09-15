@@ -99,8 +99,10 @@ def parse_lora(payload: LoraParsePayload):
         base_model=parsed["base_model"],
         net_dim=parsed["net_dim"],
         suggested_weight=existing["suggested_weight"] if existing else 0.8,
-        trigger_words=parsed["trigger_words"],
+        trigger_words=existing["trigger_words"] if existing else "",
         tag_frequency=parsed["tag_frequency"],
+        training_tags=parsed["training_tags"],
+        activation_source="manual" if existing and existing["trigger_words"] else "training_tags",
         notes=f"输出名: {parsed['output_name']}" if parsed["output_name"] else "",
     )
     card = get_lora_card(card_id)
@@ -117,8 +119,8 @@ def apply_civitai(payload: LoraCivitaiPayload):
     except LoraParseError as exc:
         return _error(str(exc), 422)
 
-    kohya_words = [w.strip() for w in card["trigger_words"].split(",") if w.strip()]
-    trigger_words = merge_trigger_words(info["trained_words"], kohya_words)
+    manual_words = [w.strip() for w in card["trigger_words"].split(",") if w.strip()]
+    trigger_words = merge_trigger_words(info["trained_words"], manual_words)
     upsert_lora_card(
         card["name"],
         filename=card["filename"],
@@ -127,6 +129,8 @@ def apply_civitai(payload: LoraCivitaiPayload):
         suggested_weight=info["suggested_weight"] or card["suggested_weight"],
         trigger_words=trigger_words,
         tag_frequency=card["tag_frequency"],
+        training_tags=card.get("training_tags", ""),
+        activation_source="civitai" if info["trained_words"] else card.get("activation_source", ""),
         civitai_text=info["description"],
     )
     return {"card": get_lora_card(card["id"])}

@@ -142,6 +142,7 @@ def init_db(db_path: Path | str | None = None) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
                 lora TEXT DEFAULT '',
+                lora_id INTEGER,
                 lora_weight REAL DEFAULT 1.0,
                 trigger_words TEXT DEFAULT '',
                 appearance TEXT DEFAULT '',
@@ -228,12 +229,29 @@ def init_db(db_path: Path | str | None = None) -> None:
                 trigger_words TEXT DEFAULT '',
                 category TEXT DEFAULT '',
                 tag_frequency TEXT DEFAULT '',
+                training_tags TEXT DEFAULT '',
+                activation_source TEXT DEFAULT '',
                 civitai_text TEXT DEFAULT '',
                 preview_image TEXT DEFAULT '',
                 notes TEXT DEFAULT '',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS output_loras (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                image_id INTEGER NOT NULL,
+                lora_id INTEGER,
+                detected_name TEXT NOT NULL,
+                weight REAL,
+                source TEXT NOT NULL DEFAULT 'metadata',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(image_id, detected_name),
+                FOREIGN KEY (image_id) REFERENCES output_images(id) ON DELETE CASCADE,
+                FOREIGN KEY (lora_id) REFERENCES lora_cards(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_output_loras_image ON output_loras(image_id);
+            CREATE INDEX IF NOT EXISTS idx_output_loras_lora ON output_loras(lora_id);
 
             CREATE TABLE IF NOT EXISTS copilot_sessions (
                 id TEXT PRIMARY KEY,
@@ -317,6 +335,14 @@ def init_db(db_path: Path | str | None = None) -> None:
         character_columns = {row["name"] for row in conn.execute("PRAGMA table_info(characters)")}
         if "preview_image" not in character_columns:
             conn.execute("ALTER TABLE characters ADD COLUMN preview_image TEXT DEFAULT ''")
+        if "lora_id" not in character_columns:
+            conn.execute("ALTER TABLE characters ADD COLUMN lora_id INTEGER")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_characters_lora_id ON characters(lora_id)")
+        lora_columns = {row["name"] for row in conn.execute("PRAGMA table_info(lora_cards)")}
+        if "training_tags" not in lora_columns:
+            conn.execute("ALTER TABLE lora_cards ADD COLUMN training_tags TEXT DEFAULT ''")
+        if "activation_source" not in lora_columns:
+            conn.execute("ALTER TABLE lora_cards ADD COLUMN activation_source TEXT DEFAULT ''")
         output_columns = {row["name"] for row in conn.execute("PRAGMA table_info(output_images)")}
         if "safety_level" not in output_columns:
             conn.execute("ALTER TABLE output_images ADD COLUMN safety_level TEXT DEFAULT ''")
@@ -338,6 +364,7 @@ def init_db(db_path: Path | str | None = None) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 image_id INTEGER NOT NULL,
                 version INTEGER NOT NULL,
+                prompt_version_id INTEGER,
                 instruction TEXT DEFAULT '',
                 edit_scopes TEXT DEFAULT '[]',
                 positive_prompt_before TEXT NOT NULL,
@@ -357,6 +384,9 @@ def init_db(db_path: Path | str | None = None) -> None:
             ON prompt_edit_history(image_id, version DESC)
             """
         )
+        history_columns = {row["name"] for row in conn.execute("PRAGMA table_info(prompt_edit_history)")}
+        if "prompt_version_id" not in history_columns:
+            conn.execute("ALTER TABLE prompt_edit_history ADD COLUMN prompt_version_id INTEGER")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS prompt_versions (
@@ -392,6 +422,10 @@ def init_db(db_path: Path | str | None = None) -> None:
             ON prompt_versions(parent_version_id)
             """
         )
+        conn.execute(
+            "DELETE FROM prompt_versions WHERE id NOT IN (SELECT MIN(id) FROM prompt_versions GROUP BY image_id, version_number)"
+        )
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_prompt_versions_image_number ON prompt_versions(image_id, version_number)")
         try:
             from tag_manager.prompt_editor.migration import migrate_prompt_versions
             migrate_prompt_versions(conn)
@@ -625,6 +659,8 @@ def upsert_lora_card(
     civitai_text: str = "",
     notes: str = "",
     connect_factory=connect,
+    training_tags: str = "",
+    activation_source: str = "",
 ) -> int:
     name = clean_text(name)
     if not name:
@@ -633,8 +669,8 @@ def upsert_lora_card(
         conn.execute(
             """
             INSERT INTO lora_cards
-                (name, filename, base_model, net_dim, suggested_weight, trigger_words, category, tag_frequency, civitai_text, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (name, filename, base_model, net_dim, suggested_weight, trigger_words, category, tag_frequency, civitai_text, notes, training_tags, activation_source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(name) DO UPDATE SET
                 filename=COALESCE(NULLIF(excluded.filename, ''), lora_cards.filename),
                 base_model=COALESCE(NULLIF(excluded.base_model, ''), lora_cards.base_model),
@@ -643,12 +679,14 @@ def upsert_lora_card(
                 trigger_words=COALESCE(NULLIF(excluded.trigger_words, ''), lora_cards.trigger_words),
                 category=COALESCE(NULLIF(excluded.category, ''), lora_cards.category),
                 tag_frequency=COALESCE(NULLIF(excluded.tag_frequency, ''), lora_cards.tag_frequency),
+                training_tags=COALESCE(NULLIF(excluded.training_tags, ''), lora_cards.training_tags),
+                activation_source=COALESCE(NULLIF(excluded.activation_source, ''), lora_cards.activation_source),
                 civitai_text=COALESCE(NULLIF(excluded.civitai_text, ''), lora_cards.civitai_text),
                 notes=COALESCE(NULLIF(excluded.notes, ''), lora_cards.notes),
                 updated_at=CURRENT_TIMESTAMP
             """,
             (name, clean_text(filename), clean_text(base_model), clean_text(net_dim),
-             suggested_weight, clean_text(trigger_words), clean_text(category), tag_frequency, civitai_text, clean_text(notes)),
+             suggested_weight, clean_text(trigger_words), clean_text(category), tag_frequency, civitai_text, clean_text(notes), clean_text(training_tags), clean_text(activation_source)),
         )
         row = conn.execute("SELECT id FROM lora_cards WHERE name=?", (name,)).fetchone()
         return row["id"] if row else 0

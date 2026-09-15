@@ -174,10 +174,10 @@ class VersionManager:
             c.execute(
                 """
                 UPDATE output_images
-                SET current_prompt_version_id = ?, positive_prompt = ?, prompt_version = ?, updated_at = CURRENT_TIMESTAMP
+                SET current_prompt_version_id = ?, positive_prompt = ?, negative_prompt = ?, prompt_version = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """,
-                (new_id, positive_prompt, next_version, image_id),
+                (new_id, positive_prompt, negative_prompt or "", next_version, image_id),
             )
 
             return {
@@ -187,6 +187,7 @@ class VersionManager:
                 "version_number": next_version,
                 "parent_version_id": actual_parent_id,
                 "positive_prompt": positive_prompt,
+                "negative_prompt": negative_prompt or "",
                 "instruction": instruction,
                 "is_current": True,
             }

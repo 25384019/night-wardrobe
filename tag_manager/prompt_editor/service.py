@@ -203,7 +203,6 @@ class PromptEditorService:
                     f"409 prompt_changed: Database version is {db_version}, but request specified {req.prompt_version}. Please refresh."
                 )
 
-            new_version = db_version + 1
             prompt_before = row["positive_prompt"]
             prompt_after = req.edited_prompt
 
@@ -222,6 +221,7 @@ class PromptEditorService:
                 applied_by="user",
                 conn=conn,
             )
+            new_version = v_info["version_number"]
 
             # Record history
             self.history_mgr.record_history(
@@ -236,6 +236,7 @@ class PromptEditorService:
                 diff_json=req.diff_summary or {},
                 applied_by="user",
                 conn=conn,
+                prompt_version_id=v_info["id"],
             )
 
             return {
@@ -344,4 +345,3 @@ class PromptEditorService:
         Restore the active working prompt to v0 Original.
         """
         return VersionManager.restore_original(image_id)
-
