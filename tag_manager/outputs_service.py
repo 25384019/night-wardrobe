@@ -585,6 +585,10 @@ def _attach_lora_library_tags(conn, detail: dict[str, Any]) -> None:
     detail["lora_style_tags"] = ", ".join([*artist_strings, *non_repeated_triggers])
     detail["image_tags"] = ", ".join(image_tokens)
     detail["character_tags"] = ", ".join(character_tokens)
+    style_tokens = _unique_tokens([*triggers, *artist_strings])
+    detail["style_prompt"] = ", ".join(style_tokens)
+    style_keys = {token.casefold() for token in style_tokens}
+    detail["character_prompt"] = ", ".join(token for token in image_tokens if token.casefold() not in style_keys)
 
 
 def set_output_safety_level(image_id: int, level: str) -> dict[str, Any] | None:

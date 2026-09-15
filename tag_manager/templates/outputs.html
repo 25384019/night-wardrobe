@@ -308,6 +308,26 @@
           <div id="inspector-assets-content" class="inspector-assets-content">选择图片后加载关联资产…</div>
         </div>
 
+        <div class="inspector-replay-tabs" role="tablist" aria-label="复刻信息层级">
+          <button type="button" class="inspector-replay-tab is-active" data-replay-tab="primitive">图元</button>
+          <button type="button" class="inspector-replay-tab" data-replay-tab="style">风格</button>
+          <button type="button" class="inspector-replay-tab" data-replay-tab="character">角色</button>
+        </div>
+        <div class="inspector-replay-panel is-active" data-replay-panel="primitive">
+          <div class="replay-panel-title">完整复刻 Prompt</div>
+          <button type="button" class="inspector-tag-copy-button" onclick="copySelectedPrompt()">复制完整 Prompt</button>
+        </div>
+        <div class="inspector-replay-panel" data-replay-panel="style" hidden>
+          <div class="replay-panel-title">🎨 Style</div>
+          <div id="inspector-style-prompt">未记录风格信息</div>
+          <button type="button" class="inspector-tag-copy-button" onclick="copyInspectorField('inspector-style-prompt','风格 Prompt')">复制风格 Prompt</button>
+        </div>
+        <div class="inspector-replay-panel" data-replay-panel="character" hidden>
+          <div class="replay-panel-title">👤 Character</div>
+          <div id="inspector-character-prompt">未记录角色 Prompt</div>
+          <button type="button" class="inspector-tag-copy-button" onclick="copyInspectorField('inspector-character-prompt','角色 Prompt')">复制角色 Prompt</button>
+        </div>
+
         <!-- Prompt Lineage / Creative Journal Section -->
         <div class="inspector-lineage-card">
           <div class="lineage-card-header">
@@ -1064,6 +1084,10 @@
     if (!data || !isVisibleImage(data.id) || selectedImageId !== data.id) return;
     var pText = document.getElementById('inspector-prompt-text');
     if (pText) pText.textContent = data.positive_prompt || '（无嵌入提示词）';
+    var stylePrompt = document.getElementById('inspector-style-prompt');
+    var characterPrompt = document.getElementById('inspector-character-prompt');
+    if (stylePrompt) { stylePrompt.textContent = data.style_prompt || '未记录风格信息'; stylePrompt.dataset.fullText = data.style_prompt || ''; }
+    if (characterPrompt) { characterPrompt.textContent = data.character_prompt || '未记录角色 Prompt'; characterPrompt.dataset.fullText = data.character_prompt || ''; }
 
     // Negative tokens
     var negText = document.getElementById('inspector-neg-text');
@@ -1143,6 +1167,14 @@
     var rating = document.getElementById('inspector-safety-select');
     if (rating) rating.value = data.safety_level || 'normal';
   }
+
+  document.querySelectorAll('[data-replay-tab]').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var name = tab.dataset.replayTab;
+      document.querySelectorAll('[data-replay-tab]').forEach(function(item) { item.classList.toggle('is-active', item === tab); });
+      document.querySelectorAll('[data-replay-panel]').forEach(function(panel) { var active = panel.dataset.replayPanel === name; panel.hidden = !active; panel.classList.toggle('is-active', active); });
+    });
+  });
 
   function loadInspectorAssets(id, requestId) {
     var card = document.getElementById('inspector-assets-card');

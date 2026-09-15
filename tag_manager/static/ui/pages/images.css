@@ -1326,6 +1326,11 @@
 .inspector-assets-card { margin-top:10px; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--surface-1); }
 .inspector-assets-content { color:var(--mochi-charcoal); font-size:11px; line-height:1.7; }
 .inspector-replay-hint { color:var(--mochi-muted); margin-top:4px; }
+.inspector-replay-tabs { display:flex; gap:6px; margin:12px 0 6px; border-bottom:1px solid var(--border); }
+.inspector-replay-tab { border:0; background:transparent; padding:7px 14px; color:var(--mochi-muted); cursor:pointer; }
+.inspector-replay-tab.is-active { color:var(--mochi-charcoal); border-bottom:2px solid var(--accent); font-weight:700; }
+.inspector-replay-panel { padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface-1); margin-bottom:8px; }
+.replay-panel-title { font-weight:700; margin-bottom:6px; }
 
 /* STRICT USER SPECIFICATION #4: Generation Pipeline Specs */
 .inspector-pipeline-card {
