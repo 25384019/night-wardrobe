@@ -19,6 +19,7 @@ from .outputs_service import (
     get_default_output_dir,
     get_output_dates,
     get_output_image_detail,
+    get_output_asset_usage,
     query_output_images,
     analyze_new_output_safety_with_wd14,
     reparse_new_outputs,
@@ -178,6 +179,14 @@ def get_detail_workflow(id: int = Query(..., ge=1)):
     except json.JSONDecodeError:
         workflow = {}
     return {"id": id, "workflow": workflow}
+
+
+@router.get("/api/outputs/assets")
+def get_output_assets(id: int = Query(..., ge=1)):
+    assets = get_output_asset_usage(id)
+    if assets is None:
+        return JSONResponse(status_code=404, content={"error": "未找到图片记录"})
+    return assets
 
 
 @router.post("/api/outputs/scan")

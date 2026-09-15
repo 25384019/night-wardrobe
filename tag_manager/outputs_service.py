@@ -450,6 +450,88 @@ def get_output_image_detail(image_id: int | None = None, rel_path: str | None = 
         return detail
 
 
+def get_output_asset_usage(image_id: int) -> dict[str, Any] | None:
+    """Return the reusable assets associated with one generated image.
+
+    The association is deliberately read-only: ``output_loras`` is the
+    source of truth for image/LoRA links, while characters are resolved by
+    their explicit ``lora_id`` first and by normalized LoRA name as a legacy
+    fallback.  This keeps old databases useful without rewriting metadata.
+    """
+    with connect() as conn:
+        image = conn.execute("SELECT id FROM output_images WHERE id = ?", (image_id,)).fetchone()
+        if not image:
+            return None
+
+        lora_rows = conn.execute(
+            """
+            SELECT ol.lora_id, ol.detected_name, ol.weight, ol.source,
+                   lc.name, lc.filename, lc.trigger_words
+            FROM output_loras ol
+            LEFT JOIN lora_cards lc ON lc.id = ol.lora_id
+            WHERE ol.image_id = ?
+            ORDER BY ol.id
+            """,
+            (image_id,),
+        ).fetchall()
+        loras: list[dict[str, Any]] = []
+        lora_ids: set[int] = set()
+        lora_keys: set[str] = set()
+        for row in lora_rows:
+            item = dict(row)
+            if item.get("lora_id") is not None:
+                lora_ids.add(int(item["lora_id"]))
+            for value in (item.get("detected_name"), item.get("name"), item.get("filename")):
+                key = _lora_key(value or "")
+                if key:
+                    lora_keys.add(key)
+            loras.append({
+                "id": item.get("lora_id"),
+                "name": item.get("name") or item.get("detected_name") or "",
+                "filename": item.get("filename") or "",
+                "weight": item.get("weight"),
+                "source": item.get("source") or "metadata",
+                "trigger_words": item.get("trigger_words") or "",
+            })
+
+        characters = conn.execute(
+            "SELECT id, name, lora, lora_id FROM characters ORDER BY name"
+        ).fetchall()
+        matched_chars: list[dict[str, Any]] = []
+        for row in characters:
+            character = dict(row)
+            matches = character.get("lora_id") in lora_ids
+            if not matches:
+                matches = _lora_key(character.get("lora") or "") in lora_keys
+            if not matches:
+                continue
+            stats = conn.execute(
+                """
+                SELECT COUNT(DISTINCT ol.image_id) AS usage_count,
+                       MAX(COALESCE(oi.file_mtime, oi.updated_at)) AS last_used
+                FROM output_loras ol
+                JOIN output_images oi ON oi.id = ol.image_id
+                WHERE (ol.lora_id = ? OR lower(ol.detected_name) = lower(?))
+                """,
+                (character.get("lora_id"), character.get("lora") or ""),
+            ).fetchone()
+            matched_chars.append({
+                "id": character["id"],
+                "name": character["name"],
+                "usage_count": int(stats["usage_count"] or 0),
+                "last_used": stats["last_used"],
+            })
+
+        suggestions: list[str] = []
+        if loras:
+            suggestions.append("复制 LoRA 与触发词后即可复刻")
+        if matched_chars:
+            suggestions.append("可保存为角色卡")
+        if not loras and not matched_chars:
+            suggestions.append("未找到可关联资产")
+        return {"characters": matched_chars, "loras": loras, "workflows": [], "suggestions": suggestions}
+
+
 def _lora_key(value: str) -> str:
     clean = str(value or "").strip().casefold()
     clean = re.sub(r"^<lora:", "", clean)
